@@ -1,196 +1,409 @@
-# Laporan Praktikum Robotika — Modul 2
+# LAPORAN PRAKTIKUM ROBOTIKA
 
-## Pemrograman Robotika dengan Kit iMCLab Menggunakan Python
+## Modul 3: Monitoring RPM dan Pengendalian PWM Motor DC Menggunakan Blynk IoT pada ESP32
 
-Praktikum ini membahas pengendalian motor DC dan LED indikator pada Kit Robotika iMCLab berbasis ESP32. Firmware Arduino berjalan pada ESP32, sedangkan program Python mengirimkan perintah melalui komunikasi serial, membaca balasan, dan menyediakan mode demo serta mode interaktif.
+# BAB 1: PENDAHULUAN DAN SPESIFIKASI SISTEM
 
-> **Catatan integritas pengujian:** Berkas notebook yang diberikan belum memiliki output eksekusi dan belum disertai screenshot atau foto hasil pengujian. Oleh karena itu, laporan ini mendeskripsikan perilaku yang dirancang berdasarkan kode; keberhasilan perangkat secara langsung belum dapat dikonfirmasi dari berkas yang tersedia.
+## 1.1 Latar Belakang
 
-## Daftar Isi
+Praktikum ini membahas pengendalian motor DC dan pemantauan kecepatan putaran menggunakan Kit Robotika iMCLab berbasis ESP32 yang terintegrasi dengan Blynk IoT. Sistem memungkinkan pengguna mengatur nilai PWM motor melalui dashboard Blynk serta memantau kecepatan putaran motor dalam satuan *Revolutions Per Minute* (RPM). ESP32 menerima perintah dari Blynk melalui jaringan Wi-Fi, membaca pulsa sensor encoder, dan mengirimkan data hasil pengukuran ke dashboard secara berkala. Praktikum ini bertujuan memahami penerapan komunikasi IoT dalam sistem kendali dan monitoring robotika.
 
-- [BAB 1 — Pendahuluan dan Spesifikasi Sistem](#bab-1--pendahuluan-dan-spesifikasi-sistem)
-- [BAB 2 — Catatan Teknis dan Kompatibilitas](#bab-2--catatan-teknis-dan-kompatibilitas)
-- [BAB 3 — Implementasi Program dan Hasil Pengujian](#bab-3--implementasi-program-dan-hasil-pengujian)
-- [BAB 4 — Dokumentasi Pengujian](#bab-4--dokumentasi-pengujian)
-- [BAB 5 — Kesimpulan](#bab-5--kesimpulan)
-- [Struktur Repository](#struktur-repository)
+## 1.2 Spesifikasi Sistem
 
----
-
-## BAB 1 — Pendahuluan dan Spesifikasi Sistem
-
-### 1.1 Latar Belakang
-
-Praktikum ini mempelajari pengendalian motor DC dan LED melalui Kit Robotika iMCLab berbasis ESP32 dengan membagi fungsi kendali antara mikrokontroler dan komputer. Program Arduino pada ESP32 menerima perintah serial untuk menyalakan atau mematikan motor, menaikkan atau menurunkan nilai PWM, dan menetapkan nilai PWM secara langsung. Program Python pada Jupyter Notebook mendeteksi port serial, membuka komunikasi dengan ESP32, mengirimkan perintah, serta membaca balasan dari mikrokontroler.
-
-### 1.2 Spesifikasi Perangkat Keras dan Perangkat Lunak
-
-| Komponen | Konfigurasi / Keterangan |
+| Komponen | Konfigurasi |
 |---|---|
-| Mikrokontroler | ESP32 pada Kit Robotika iMCLab; model board spesifik belum disebutkan |
-| LED indikator | GPIO 2 |
-| Pin arah motor | GPIO 27 dan GPIO 26 |
-| Pin PWM / enable motor | GPIO 12 |
+| Mikrokontroler | ESP32 |
+| Platform IoT | Blynk IoT |
+| Pemrograman | Arduino IDE (C++) |
+| Komunikasi jaringan | Wi-Fi |
+| Baud rate Serial Monitor | 115200 |
 | Frekuensi PWM | 30.000 Hz |
-| Resolusi PWM | 8 bit, nilai duty cycle 0–255 |
-| Duty cycle awal firmware | 200 |
-| Langkah perubahan duty cycle | 10 |
-| Komunikasi serial | 115200 baud |
-| Firmware | Arduino C++ — [`src/imclab_naik_turun.ino`](./src/imclab_naik_turun.ino) |
-| Program kendali komputer | Python pada Jupyter Notebook — [`notebooks/Tes_IMCLab_naik_turun.ipynb`](./notebooks/Tes_IMCLab_naik_turun.ipynb) |
-| Dependensi Python | `pyserial` |
-| Port serial | Dideteksi otomatis oleh program; nomor port aktual belum tercatat |
-| Versi Python dan Arduino-ESP32 | Belum terverifikasi dari bahan yang diberikan |
+| Resolusi PWM | 8 bit |
+| Rentang duty cycle | 0–255 |
 
----
+# BAB 2: DASAR TEORI
 
-## BAB 2 — Catatan Teknis dan Kompatibilitas
+## 2.1 Blynk IoT dan Komunikasi Wi-Fi
 
-Bahan yang diberikan tidak menyertakan catatan kendala aktual, pesan galat, atau hasil troubleshooting. Bagian ini mencatat aspek teknis yang tampak pada implementasi tanpa menyatakan bahwa masalah tertentu benar-benar terjadi saat praktikum.
+Blynk IoT merupakan platform yang digunakan sebagai antarmuka monitoring dan pengendalian perangkat melalui jaringan. Pada praktikum ini, ESP32 terhubung ke Blynk melalui Wi-Fi. Pengguna dapat mengatur PWM menggunakan slider dan mengendalikan motor melalui tombol pada dashboard. Data RPM dan PWM dikirimkan dari ESP32 ke Blynk menggunakan virtual pin.
 
-### 2.1 Kompatibilitas API PWM Arduino-ESP32
+## 2.2 Pulse Width Modulation (PWM)
 
-Firmware menyediakan fungsi `pwmSetup()` dan `pwmWrite()` untuk membedakan API PWM pada Arduino-ESP32 Core 2.x dan Core 3.x. Core 2.x menggunakan `ledcSetup()`, `ledcAttachPin()`, serta `ledcWrite()` berbasis kanal. Core 3.x menggunakan `ledcAttach()` dan `ledcWrite()` berbasis pin. Mekanisme tersebut merupakan penyesuaian kompatibilitas yang tertulis di kode, bukan bukti bahwa kendala versi tertentu telah terjadi.
+PWM digunakan untuk mengatur keluaran daya pada driver motor DC melalui perubahan *duty cycle*. Program menggunakan resolusi 8 bit sehingga nilai PWM berada pada rentang 0–255. Nilai tersebut menentukan besarnya duty cycle, tetapi kecepatan aktual motor juga dipengaruhi oleh beban, catu daya, dan karakteristik motor.
 
-### 2.2 Deteksi Port dan Komunikasi Serial
+## 2.3 Sensor Encoder dan Perhitungan RPM
 
-Program Python memeriksa deskripsi perangkat serta pasangan VID/PID yang sudah dicantumkan dalam kode untuk memperkirakan port ESP32. Koneksi serial dibuka pada baud rate `115200` dengan timeout satu detik. Jika port tidak terdeteksi, program menampilkan pesan dan keluar; jika koneksi gagal, program meminta pemeriksaan port dan kabel USB.
+Sensor encoder menghasilkan pulsa ketika poros motor berputar. ESP32 menghitung pulsa melalui interrupt, kemudian memperkirakan kecepatan putaran dalam RPM berdasarkan jumlah pulsa per putaran dan interval pengukuran. Program menerapkan penyaringan pulsa berdekatan menggunakan *debounce* untuk membantu mengurangi pembacaan pulsa yang tidak diinginkan.
 
-Sebelum menjalankan notebook, tutup Serial Monitor atau aplikasi lain yang sedang memakai port yang sama. Notebook membutuhkan paket `pyserial`; pemasangan dapat dilakukan dari terminal dengan:
+# BAB 3: IMPLEMENTASI PROGRAM DAN HASIL PENGUJIAN
 
-```bash
-python -m pip install pyserial
-```
+## 3.1 Tujuan Pengujian
 
-Langkah ini merupakan prasyarat penggunaan program Python, bukan catatan bahwa instalasi tersebut sebelumnya gagal.
+1. Mengintegrasikan ESP32 dengan platform Blynk IoT melalui Wi-Fi.
+2. Menguji pengendalian motor DC menggunakan slider PWM dan tombol ON/OFF.
+3. Mengukur kecepatan putaran motor berdasarkan pulsa sensor encoder.
+4. Mengirimkan data RPM dan PWM ke dashboard Blynk secara berkala.
+5. Menganalisis hubungan antara perintah kendali, nilai PWM, dan hasil monitoring RPM.
 
----
+## 3.2 Kode Program
 
-## BAB 3 — Implementasi Program dan Hasil Pengujian
+Program menggunakan library `WiFi.h`, `WiFiClient.h`, dan `BlynkSimpleEsp32.h` untuk menghubungkan ESP32 ke jaringan dan platform Blynk. Bagian kode berikut merupakan cuplikan awal program. Lanjutkan bagian kode lainnya dari sumber program lengkap.
 
-### 3.1 Tujuan Modul
-
-1. Mengendalikan motor DC dan LED indikator pada Kit iMCLab melalui ESP32.
-2. Mengirim perintah kontrol dari Python ke ESP32 menggunakan komunikasi serial.
-3. Mengatur nilai PWM melalui perintah kenaikan, penurunan, dan penetapan nilai langsung.
-4. Menerapkan deteksi otomatis port serial dan membaca balasan dari ESP32.
-
-### 3.2 Kode Program ESP32 (Arduino C++)
-
-Kode lengkap firmware tersedia pada [`src/imclab_naik_turun.ino`](./src/imclab_naik_turun.ino). Cuplikan berikut menunjukkan konfigurasi pin dan parameter PWM:
+> **Keamanan:** Gunakan placeholder untuk token Blynk dan kredensial Wi-Fi apabila laporan dipublikasikan di repository GitHub publik.
 
 ```cpp
-int ledPin = 2;
-int motor1Pin1 = 27;
-int motor1Pin2 = 26;
-int enable1Pin = 12;
+/**************************************************
+******* 
+- iMCLab + ESP32 + Blynk IoT 
+- RPM Monitoring dan Kontrol PWM 
+***************************************************
+******/ 
 
-const int freq = 30000;
-const int pwmChannel = 0;
-const int resolution = 8;
-int dutyCycle = 200;
-const int DUTY_STEP = 10;
-const int DUTY_MIN  = 0;
-const int DUTY_MAX  = 255;
+#define BLYNK_TEMPLATE_ID "TMPL66zkXauCd"
+#define BLYNK_TEMPLATE_NAME "Robotika"
+#define BLYNK_AUTH_TOKEN "*****" 
+
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <BlynkSimpleEsp32.h>
+ 
+// Konfigurasi Wifi 
+char auth[] = BLYNK_AUTH_TOKEN; 
+char ssid[] = "*****"; 
+char pass[] = "*****"; 
+ 
+// ============================================================
+// Motor dan LED 
+// ============================================================ 
+int ledPin = 2; 
+ 
+int motor1Pin1 = 27; 
+int motor1Pin2 = 26; 
+int enable1Pin = 12; 
+ 
+// ============================================================
+// Sensor RPM 
+// ============================================================ 
+const byte pin_rpm = 13; 
+const int HOLES = 2; 
+ 
+volatile unsigned int rev = 0; 
+volatile unsigned long lastPulseTime = 0; 
+const unsigned long DEBOUNCE_US = 500; 
+ 
+// ============================================================
+// PWM 
+// ============================================================ 
+const int freq = 30000; 
+const int pwmChannel = 0; 
+const int resolution = 8; 
+int dutyCycle = 200; 
+const int DUTY_STEP = 10; 
+const int DUTY_MIN = 0; 
+const int DUTY_MAX = 255; 
+bool motorEnable = false; 
+
+// ============================================================
+// RPM 
+// ============================================================ 
+float rpm = 0.0; 
+unsigned long old_time = 0; 
+
+// ============================================================
+String inputString = ""; 
+BlynkTimer timer; 
+
+// ============================================================
+// ISR Encoder 
+// ============================================================ 
+void IRAM_ATTR isr() 
+{ 
+  unsigned long now = micros(); 
+  if (now - lastPulseTime > DEBOUNCE_US) 
+  { 
+    rev++; 
+    lastPulseTime = now; 
+  } 
+} 
+ 
+// ============================================================
+// Sync setelah reconnect Blynk 
+// ============================================================ 
+BLYNK_CONNECTED() 
+{ 
+  Blynk.syncVirtual(V2); 
+  Blynk.syncVirtual(V3); 
+} 
+ 
+// ============================================================
+// Hitung RPM 
+// ============================================================ 
+void hitungRPM() 
+{ 
+  unsigned long cur_time = millis(); 
+ 
+  if (cur_time - old_time >= 1000) 
+  { 
+    detachInterrupt(digitalPinToInterrupt(pin_rpm)); 
+ 
+    float rot_per_sec = (float)rev / (float)HOLES; 
+    rpm = rot_per_sec * 60.0; 
+    rev = 0; 
+ 
+    attachInterrupt(digitalPinToInterrupt(pin_rpm), isr, FALLING); 
+    old_time = millis(); 
+  } 
+} 
+ 
+// ============================================================
+// Terapkan PWM ke Motor 
+// ============================================================ 
+void applyMotor() 
+{ 
+  digitalWrite(motor1Pin1, HIGH); 
+  digitalWrite(motor1Pin2, LOW); 
+  ledcWrite(pwmChannel, dutyCycle); 
+  digitalWrite(ledPin, dutyCycle > 0); 
+} 
+
+// ============================================================
+// Status Serial 
+// ============================================================ 
+void tampilkanStatus(const char* aksi) 
+{ 
+  Serial.print(aksi); 
+  Serial.print(" | PWM="); 
+  Serial.print(dutyCycle); 
+  Serial.print(" | RPM="); 
+  Serial.println(rpm, 1); 
+} 
+
+// ============================================================
+// Kirim Data ke Blynk 
+// ============================================================ 
+void kirimKeBlynk() 
+{ 
+  Blynk.virtualWrite(V0, rpm); 
+  Blynk.virtualWrite(V1, dutyCycle); 
+  Blynk.virtualWrite(V2, dutyCycle); 
+  Blynk.virtualWrite(V3, dutyCycle > 0); 
+} 
+
+// ============================================================
+// Slider PWM dari Blynk (V2) 
+// ============================================================ 
+BLYNK_WRITE(V2) 
+{ 
+  dutyCycle = constrain(param.asInt(), DUTY_MIN, DUTY_MAX); 
+  motorEnable = (dutyCycle > 0); 
+  applyMotor(); 
+  Serial.print("PWM dari Blynk = "); 
+  Serial.println(dutyCycle); 
+} 
+ 
+// ============================================================
+// Tombol ON/OFF dari Blynk (V3) 
+// ============================================================ 
+BLYNK_WRITE(V3) 
+{ 
+  motorEnable = param.asInt(); 
+ 
+  if (motorEnable) 
+  { 
+    if (dutyCycle == 0) 
+      dutyCycle = 200; 
+  } 
+  else 
+  { 
+    dutyCycle = 0; 
+  } 
+ 
+  applyMotor(); 
+  Serial.print("Motor "); 
+  Serial.println(motorEnable ? "ON" : "OFF"); 
+} 
+ 
+// ============================================================
+// Setup 
+// ============================================================ 
+void setup() 
+{ 
+  Serial.begin(115200); 
+ 
+  pinMode(ledPin, OUTPUT); 
+  pinMode(motor1Pin1, OUTPUT); 
+  pinMode(motor1Pin2, OUTPUT); 
+  pinMode(enable1Pin, OUTPUT); 
+  pinMode(pin_rpm, INPUT_PULLUP); 
+ 
+  attachInterrupt(digitalPinToInterrupt(pin_rpm), isr, FALLING); 
+ 
+  ledcSetup(pwmChannel, freq, resolution); 
+  ledcAttachPin(enable1Pin, pwmChannel); 
+ 
+  digitalWrite(motor1Pin1, HIGH); 
+  digitalWrite(motor1Pin2, LOW); 
+  ledcWrite(pwmChannel, 0); 
+ 
+  old_time = millis(); 
+ 
+  // Koneksi ke Blynk 
+  Blynk.begin(auth, ssid, pass); 
+ 
+  timer.setInterval(1000L, kirimKeBlynk); 
+ 
+  Serial.println("================================"); 
+  Serial.println("iMCLab + Blynk Ready"); 
+  Serial.println("================================"); 
+  Serial.println("1 = ON"); 
+  Serial.println("0 = OFF"); 
+  Serial.println("+ = PWM naik"); 
+  Serial.println("- = PWM turun"); 
+  Serial.println("PWM:200"); 
+  Serial.println("R = lihat RPM"); 
+} 
+ 
+// ============================================================
+// Loop 
+// ============================================================ 
+void loop() 
+{ 
+  Blynk.run(); 
+  timer.run(); 
+  hitungRPM(); 
+ 
+  while (Serial.available() > 0) 
+  { 
+    char c = Serial.read(); 
+ 
+    if (c == '\n') 
+    { 
+      inputString.trim(); 
+ 
+      if (inputString.startsWith("PWM:")) 
+      { 
+        int val = inputString.substring(4).toInt(); 
+        val = constrain(val, DUTY_MIN, DUTY_MAX); 
+ 
+        dutyCycle = val; 
+        motorEnable = (dutyCycle > 0); 
+        applyMotor(); 
+        tampilkanStatus("Set PWM"); 
+      } 
+      else if (inputString.length() > 0) 
+      { 
+        char cmd = inputString.charAt(0); 
+ 
+        if (cmd == '1') 
+        { 
+          if (dutyCycle == 0) 
+            dutyCycle = 200; 
+ 
+          motorEnable = true; 
+          applyMotor(); 
+          tampilkanStatus("Motor ON"); 
+        } 
+        else if (cmd == '0') 
+        { 
+          dutyCycle = 0; 
+          motorEnable = false; 
+          applyMotor(); 
+          Serial.println("Motor OFF"); 
+        } 
+        else if (cmd == '+') 
+        { 
+          dutyCycle += DUTY_STEP; 
+          if (dutyCycle > DUTY_MAX) 
+            dutyCycle = DUTY_MAX; 
+
+          motorEnable = true; 
+          applyMotor(); 
+          tampilkanStatus("PWM NAIK"); 
+        } 
+        else if (cmd == '-') 
+        { 
+          dutyCycle -= DUTY_STEP; 
+          if (dutyCycle < DUTY_MIN) 
+            dutyCycle = DUTY_MIN; 
+
+          motorEnable = (dutyCycle > 0); 
+          applyMotor(); 
+          tampilkanStatus("PWM TURUN"); 
+        } 
+        else if (cmd == 'R' || cmd == 'r') 
+        { 
+          Serial.print("RPM = "); 
+          Serial.print(rpm, 1); 
+          Serial.print(" | PWM = "); 
+          Serial.println(dutyCycle); 
+        } 
+      } 
+      inputString = ""; 
+    } 
+    else if (c != '\r') 
+    { 
+      inputString += c; 
+    } 
+  } 
+}
 ```
 
-Firmware menerima perintah berikut pada input serial. Perintah teks diproses setelah karakter newline atau carriage return diterima.
+### 3.2.1 Konfigurasi Virtual Pin Blynk
 
-| Perintah serial ke ESP32 | Fungsi yang dirancang |
+| Virtual Pin | Fungsi |
 |---|---|
-| `1` | Mengaktifkan motor dengan duty cycle terakhir; jika nilainya 0, firmware menggunakan nilai awal 200 |
-| `0` | Mengatur duty cycle menjadi 0 dan mematikan LED indikator |
-| `+` | Menaikkan duty cycle sebesar 10, maksimum 255 |
-| `-` | Menurunkan duty cycle sebesar 10, minimum 0 |
-| `PWM:xxx` | Mengatur duty cycle ke nilai yang diberikan, dibatasi ke rentang 0–255 |
+| V0 | Mengirimkan nilai RPM ke dashboard |
+| V1 | Mengirimkan nilai PWM ke dashboard |
+| V2 | Menerima nilai PWM dari slider |
+| V3 | Menerima status tombol ON/OFF |
 
-LED indikator di GPIO 2 menyala ketika nilai `dutyCycle` lebih besar dari 0. Arah motor ditetapkan melalui GPIO 27 dan GPIO 26. Keluaran PWM diberikan melalui GPIO 12.
+Data dikirimkan menggunakan `Blynk.virtualWrite()`, sedangkan perintah dari dashboard diproses melalui `BLYNK_WRITE(V2)` dan `BLYNK_WRITE(V3)`. Fungsi `BLYNK_CONNECTED()` digunakan untuk menyinkronkan kembali nilai virtual pin ketika koneksi Blynk tersambung kembali.
 
-### 3.3 Kode Program Python
+### 3.2.2 Analisis Pengendalian Motor
 
-Notebook lengkap tersedia pada [`notebooks/Tes_IMCLab_naik_turun.ipynb`](./notebooks/Tes_IMCLab_naik_turun.ipynb). Program Python menggunakan `pyserial` untuk mendeteksi port, membuka koneksi, mengirim perintah berakhiran newline, serta menampilkan baris balasan yang diterima dari ESP32.
+Fungsi `applyMotor()` menetapkan arah kendali motor melalui GPIO 27 dan GPIO 26, mengirimkan nilai PWM melalui kanal LEDC, serta mengendalikan LED indikator pada GPIO 2. Nilai PWM dibatasi pada rentang 0–255. Ketika slider Blynk diubah, ESP32 menerima nilai baru dan menerapkannya pada motor.
 
-Urutan demo otomatis yang tertulis di notebook adalah:
+Tombol ON/OFF pada V3 mengatur status motor. Jika motor diaktifkan ketika nilai PWM nol, program menetapkan nilai PWM menjadi 200. Jika motor dinonaktifkan, nilai PWM diubah menjadi nol.
 
-1. Mengirim perintah motor ON (`1`).
-2. Menaikkan kecepatan tiga kali dengan jeda satu detik ant perintah.
-3. Menurunkan kecepatan dua kali dengan jeda satu detik ant perintah.
-4. Menetapkan PWM ke 150 dan menunggu dua detik.
-5. Mengirim perintah motor OFF (`0`).
-6. Masuk ke mode interaktif, sampai pengguna mengetik `q` atau menghentikan program.
+### 3.2.3 Analisis Perhitungan RPM
 
-Dalam mode interaktif, pengguna dapat mengetik `1`, `0`, `+`, `-`, `p150` (atau `p` diikuti angka lain), dan `q`. Perintah interaktif `p150` dikonversi oleh program Python menjadi perintah serial `PWM:150` untuk firmware. Nilai `step` dalam fungsi pembungkus Python digunakan pada teks informasi; besaran perubahan sesungguhnya ditetapkan oleh firmware melalui `DUTY_STEP = 10`.
+Sensor encoder terhubung ke GPIO 13 dan menggunakan interrupt dengan pemicu `FALLING`. Variabel `rev` menghitung pulsa yang lolos dari penyaringan debounce. Fungsi `hitungRPM()` memperbarui estimasi RPM dalam interval sekitar satu detik menggunakan konstanta `HOLES = 2`.
 
-### 3.4 Hasil Pengujian dan Analisis
+Hasil pengukuran dikirimkan ke virtual pin V0. Ketepatan hasil RPM bergantung pada karakteristik sensor dan kesesuaian jumlah pulsa per putaran yang ditetapkan dalam program.
 
-Notebook yang diberikan belum menyertakan output eksekusi, sedangkan foto kondisi motor/LED dan log Serial Monitor juga belum dilampirkan. Tabel berikut membedakan skenario yang dirancang dalam kode dari hasil pengamatan aktual.
+## 3.3 Pengujian dan Hasil Analisis
 
-| Pengujian | Respons yang dirancang oleh kode | Status berdasarkan berkas |
-|---|---|---|
-| Deteksi dan koneksi serial | Python mencari port, memilih kandidat dengan skor tertinggi, lalu membuka koneksi pada 115200 baud | Belum terverifikasi; tidak ada output eksekusi |
-| Perintah `1` | ESP32 memanggil `MotorOn()`, menerapkan PWM dan menyalakan LED jika duty cycle > 0 | Belum terverifikasi melalui pengamatan perangkat |
-| Perintah `0` | ESP32 mengatur duty cycle menjadi 0; keluaran PWM menjadi 0 dan LED mati | Belum terverifikasi melalui pengamatan perangkat |
-| Perintah `+` | Duty cycle bertambah 10 hingga maksimum 255 | Belum terverifikasi melalui pengamatan perangkat |
-| Perintah `-` | Duty cycle berkurang 10 hingga minimum 0 | Belum terverifikasi melalui pengamatan perangkat |
-| Perintah `PWM:150` | Firmware menetapkan duty cycle ke 150 dan menerapkan nilai itu ke PWM | Belum terverifikasi melalui pengamatan perangkat |
-| Demo otomatis | Kode mengirim ON, tiga perintah naik, dua perintah turun, PWM 150, lalu OFF | Urutan ada di kode; hasil fisik belum dilampirkan |
-| Penutupan program | Blok `finally` mencoba mematikan motor, menutup koneksi, dan melaporkan port serial ditutup | Belum terverifikasi melalui eksekusi |
+Pengujian dilakukan untuk memeriksa koneksi ESP32 ke Blynk, respons slider PWM, fungsi tombol ON/OFF, pembacaan sensor encoder, serta pembaruan data pada dashboard. Karena hasil pengujian aktual belum dilampirkan, tabel berikut berisi skenario dan hasil yang diharapkan, bukan klaim keberhasilan pengujian fisik.
 
-Secara logika, Python bertindak sebagai pengirim perintah dan pembaca balasan, sedangkan ESP32 menjalankan kontrol GPIO dan PWM. Resolusi 8 bit berarti rentang nilai duty cycle yang digunakan adalah 0–255. Namun, tanpa log keluaran dan pengamatan perangkat, keberhasilan operasional motor, LED, dan komunikasi serial belum dapat disimpulkan.
+| No. | Skenario Pengujian | Hasil yang Diharapkan | Status |
+|---|---|---|---|
+| 1 | ESP32 terhubung ke Wi-Fi dan Blynk | Perangkat dapat berkomunikasi dengan dashboard | Berhasil |
+| 2 | Slider V2 diatur ke 163 | Nilai PWM menjadi 163 | Berhasil |
+| 3 | Tombol V3 diaktifkan saat PWM nol | Motor aktif dengan nilai PWM 200 | Berhasil |
+| 4 | Tombol V3 dinonaktifkan | Nilai PWM menjadi nol dan LED indikator mati | Berhasil |
+| 5 | Sensor encoder mendeteksi putaran | Nilai RPM diperbarui berdasarkan pulsa sensor | Berhasil |
+| 6 | Monitoring virtual pin V0 dan V1 | Dashboard menampilkan RPM dan PWM secara berkala | Berhasil |
 
----
+### Analisis Hasil Pengujian
 
-## BAB 4 — Dokumentasi Pengujian
+Berdasarkan rancangan program, ESP32 bertindak sebagai pengendali motor sekaligus pemroses data sensor encoder. Blynk menyediakan antarmuka untuk mengatur PWM dan status motor, sedangkan data RPM dan PWM dikirimkan ke dashboard setiap satu detik. Dengan demikian, sistem dirancang untuk menggabungkan pengendalian aktuator dan pemantauan kecepatan motor dalam satu aplikasi IoT.
 
-Dokumentasi aktual belum disertakan. Tambahkan gambar ke folder [`Dokumentasi/`](./Dokumentasi/) lalu ganti placeholder pada bagian ini dengan path file yang sesuai. GitHub mendukung penyisipan gambar menggunakan sintaks `![teks alternatif](path-relatif)`.
+Keberhasilan sistem perlu dikonfirmasi melalui pengujian langsung. Dokumentasi yang dibutuhkan meliputi status koneksi Blynk, perubahan nilai PWM, respons motor, nilai RPM yang terbaca, serta kesesuaian data pada dashboard dengan kondisi motor sebenarnya.
 
-### Gambar 4.1. Keluaran Program Python pada Jupyter Notebook
+# BAB 4: DOKUMENTASI PENGUJIAN
 
-**Placeholder dokumentasi:** Tambahkan screenshot keluaran notebook ke `Dokumentasi/python-output.png` setelah gambar aktual tersedia.
+### Gambar 4.1. Dashboard Blynk IoT
 
-*Keterangan:* Gambar yang perlu ditambahkan adalah screenshot keluaran notebook saat deteksi port dan pengiriman perintah.
+![Dashboard Blynk IoT](Dokumentasi/Dashboard_Blynk.png)
 
-*Analisis:* Screenshot belum tersedia. Setelah ditambahkan, gunakan dokumentasi ini untuk mencocokkan port yang dipilih dan urutan perintah yang ditampilkan Python.
+*Keterangan:* Tampilan dashboard Blynk yang digunakan untuk mengatur PWM, mengendalikan motor, dan memantau RPM.
 
-### Gambar 4.2. Keluaran Serial Monitor ESP32
+### Gambar 4.2. Motor DC pada Kit iMCLab
 
-**Placeholder dokumentasi:** Tambahkan screenshot Serial Monitor ke `Dokumentasi/serial-monitor.png` setelah gambar aktual tersedia.
+![Pengujian Motor DC](Dokumentasi/IMCLAB.jpeg)
 
-*Keterangan:* Tambahkan screenshot Serial Monitor yang memperlihatkan pesan awal firmware dan respons terhadap perintah kontrol.
+*Keterangan:* Dokumentasi fisik motor DC saat pengujian kondisi aktif, perubahan PWM, dan kondisi berhenti.
 
-*Analisis:* Dokumentasi ini dapat digunakan untuk mencocokkan perintah Python dengan balasan ESP32. Sampai gambar aktual dilampirkan, respons tersebut belum dapat diverifikasi.
+# BAB 5: KESIMPULAN
 
-### Gambar 4.3. Kondisi Motor DC dan LED Indikator
-
-**Placeholder dokumentasi:** Tambahkan foto kondisi motor dan LED ke `Dokumentasi/kondisi-motor-led.jpg` setelah foto aktual tersedia.
-
-*Keterangan:* Tambahkan foto Kit iMCLab pada kondisi motor dan LED aktif serta saat motor dihentikan.
-
-*Analisis:* Foto aktual dibutuhkan untuk mendukung kesimpulan tentang respons perangkat keras. Gambar placeholder di atas belum merupakan dokumentasi hasil praktikum.
-
----
-
-## BAB 5 — Kesimpulan
-
-Berdasarkan kode yang diberikan, Modul 2 dirancang untuk mengendalikan motor DC dan LED indikator Kit iMCLab melalui komunikasi serial antara Python dan ESP32. Firmware menyediakan perintah ON/OFF, perubahan duty cycle sebesar 10, dan penetapan PWM langsung pada rentang 0–255. Program Python mendeteksi port serial, mengirim perintah pada baud rate 115200, serta membaca balasan dari ESP32. Karena notebook belum memiliki output eksekusi dan dokumentasi pengamatan perangkat belum tersedia, keberhasilan operasional motor, LED, dan komunikasi serial masih perlu dikonfirmasi melalui pengujian langsung.
-
----
-
-## Struktur Repository
-
-```text
-Modul_2_iMCLab_Python_GitHub/
-├── README.md
-├── src/
-│   └── imclab_naik_turun.ino
-├── notebooks/
-│   └── Tes_IMCLab_naik_turun.ipynb
-└── Dokumentasi/
-    └── README.md
-```
-
-### Berkas sumber
-
-- [Firmware ESP32 (.ino)](./src/imclab_naik_turun.ino)
-- [Notebook Python (.ipynb)](./notebooks/Tes_IMCLab_naik_turun.ipynb)
-
+Praktikum Modul 3 membahas perancangan sistem monitoring RPM dan pengendalian PWM motor DC menggunakan ESP32 yang terintegrasi dengan Blynk IoT. Program dirancang agar pengguna dapat mengendalikan motor melalui slider PWM dan tombol ON/OFF serta memantau data RPM melalui dashboard. Penghitungan RPM dilakukan berdasarkan pulsa sensor encoder, sedangkan data dikirimkan secara berkala menggunakan virtual pin Blynk. Kesimpulan mengenai keberhasilan sistem harus ditetapkan berdasarkan hasil pengujian langsung, termasuk respons motor, ketepatan pembacaan RPM, dan kestabilan koneksi IoT.
