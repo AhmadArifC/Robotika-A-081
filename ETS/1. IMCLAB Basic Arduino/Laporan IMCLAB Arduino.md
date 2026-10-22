@@ -1,44 +1,141 @@
+# LAPORAN PRAKTIKUM ROBOTIKA
+## Pengendalian LED dan Motor DC Menggunakan ESP32
+
 # BAB 1: PENDAHULUAN & SPESIFIKASI SISTEM
 
 ## 1.1 Latar Belakang
 
-Praktikum ini bertujuan mempelajari pengendalian LED dan motor DC menggunakan mikrokontroler **DOIT ESP32 DEVKIT V1**. Sistem dikendalikan melalui komunikasi serial pada Arduino IDE. Karakter `1` digunakan untuk menyalakan LED dan motor, sedangkan karakter `0` digunakan untuk mematikannya. Kecepatan motor diatur menggunakan *Pulse Width Modulation* (PWM), sementara arah putaran ditentukan melalui pin kontrol driver motor.
+Praktikum ini mempelajari pengendalian LED dan motor DC menggunakan DOIT ESP32 DEVKIT V1 melalui Serial Monitor. Karakter `1` digunakan untuk menyalakan LED dan motor, sedangkan karakter `0` digunakan untuk mematikannya. Kecepatan motor diatur menggunakan PWM.
 
-## 1.2 Spesifikasi Perangkat Keras dan Perangkat Lunak
+## 1.2 Spesifikasi Sistem
 
-### A. Perangkat Keras
-
-| Komponen | Spesifikasi/Fungsi |
+| Komponen | Konfigurasi |
 |---|---|
 | Mikrokontroler | DOIT ESP32 DEVKIT V1 |
-| LED | Dikendalikan melalui GPIO 2 |
-| Driver motor | Mengendalikan motor DC berdasarkan sinyal kontrol dan PWM |
-| Motor DC | Aktuator yang dikendalikan oleh ESP32 |
-| Pin kontrol motor | GPIO 27 dan GPIO 26 |
-| Pin PWM motor | GPIO 12 |
+| LED | GPIO 2 |
+| Kontrol motor | GPIO 27 dan GPIO 26 |
+| PWM motor | GPIO 12 |
+| Pemrograman | Arduino IDE |
+| Baud rate | 115200 |
+| Frekuensi PWM | 30.000 Hz |
+| Resolusi PWM | 8 bit |
 
-### B. Perangkat Lunak
+# BAB 2: DASAR TEORI
 
-| Komponen | Spesifikasi/Fungsi |
-|---|---|
-| Arduino IDE | Lingkungan pemrograman ESP32 |
-| ESP32 Arduino Core | Menggunakan API versi 2.x |
-| Serial Monitor | Komunikasi serial dengan baud rate 115200 |
-| PWM | Frekuensi 30.000 Hz, resolusi 8 bit, kanal 0 |
+## 2.1 Mikrokontroler ESP32
 
-Versi Arduino IDE dan perangkat lunak pendukung lainnya belum didokumentasikan.
+ESP32 merupakan mikrokontroler yang digunakan untuk menjalankan program dan mengendalikan komponen berdasarkan konfigurasi pin yang ditentukan.
 
-### C. Konfigurasi Pin
+## 2.2 General Purpose Input/Output (GPIO)
 
-| Pin ESP32 | Fungsi |
-|---|---|
-| GPIO 2 | Kontrol LED |
-| GPIO 27 | Kontrol arah motor |
-| GPIO 26 | Kontrol arah motor |
-| GPIO 12 | Sinyal PWM untuk driver motor |
+GPIO digunakan sebagai pin masukan atau keluaran digital. Pada praktikum ini, GPIO digunakan untuk mengendalikan LED dan menentukan arah putaran motor DC.
 
-## 1.3 Ringkasan Sistem
+## 2.3 Pulse Width Modulation (PWM)
 
-Program menerima perintah berupa karakter melalui Serial Monitor. Ketika karakter `1` diterima, ESP32 menyalakan LED dan mengaktifkan motor DC dengan konfigurasi arah maju. Ketika karakter `0` diterima, LED dimatikan dan motor dihentikan.
+PWM merupakan metode pengaturan keluaran melalui perubahan *duty cycle*. Pada praktikum ini, PWM digunakan untuk mengatur daya yang diberikan kepada driver motor DC.
 
-Pengaturan kecepatan motor menggunakan PWM dengan frekuensi 30.000 Hz dan resolusi 8 bit. Nilai `dutyCycle` ditetapkan sebesar 250, setara dengan sekitar 98,04% dari rentang PWM 0–255.
+## 2.4 Komunikasi Serial
+
+Komunikasi serial digunakan untuk mengirimkan perintah dari Serial Monitor ke ESP32. Program menerima karakter `1` untuk mengaktifkan LED dan motor, serta `0` untuk mematikannya.
+
+# BAB 3: IMPLEMENTASI PROGRAM DAN HASIL PENGUJIAN
+
+## 3.1 Tujuan Praktikum
+
+1. Mengendalikan LED melalui komunikasi serial.
+2. Mengoperasikan motor DC menggunakan ESP32.
+3. Mengatur keluaran PWM untuk mengendalikan motor.
+
+## 3.2 Kode Program
+
+```cpp
+int ledPin = 2;
+char myData = 0;
+
+int motor1Pin1 = 27;
+int motor1Pin2 = 26;
+int enable1Pin = 12;
+
+// Setting PWM properties untuk ESP32 Core 2.x
+const int freq = 30000;
+const int pwmChannel = 0;
+const int resolution = 8;
+int dutyCycle = 250;
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(ledPin, OUTPUT);
+
+  pinMode(motor1Pin1, OUTPUT);
+  pinMode(motor1Pin2, OUTPUT);
+  pinMode(enable1Pin, OUTPUT);
+
+  ledcSetup(pwmChannel, freq, resolution);
+  ledcAttachPin(enable1Pin, pwmChannel);
+
+  digitalWrite(ledPin, LOW);
+  digitalWrite(motor1Pin1, LOW);
+  digitalWrite(motor1Pin2, LOW);
+  ledcWrite(pwmChannel, 0);
+
+  Serial.println("Testing DC Motor...");
+  Serial.println("Kirim 1 untuk menyalakan motor.");
+  Serial.println("Kirim 0 untuk mematikan motor.");
+}
+
+void MotorOn() {
+  digitalWrite(motor1Pin1, HIGH);
+  digitalWrite(motor1Pin2, LOW);
+
+  ledcWrite(pwmChannel, dutyCycle);
+}
+
+void MotorOff() {
+  ledcWrite(pwmChannel, 0);
+
+  digitalWrite(motor1Pin1, LOW);
+  digitalWrite(motor1Pin2, LOW);
+}
+
+void loop() {
+  if (Serial.available() > 0) {
+    myData = Serial.read();
+
+    if (myData == '1') {
+      Serial.println("LED is ON!");
+      digitalWrite(ledPin, HIGH);
+      MotorOn();
+    }
+    else if (myData == '0') {
+      Serial.println("LED is OFF!");
+      digitalWrite(ledPin, LOW);
+      MotorOff();
+    }
+  }
+}
+```
+
+## 3.3 Hasil Pengujian dan Analisis
+
+| Perintah | Hasil Pengujian | Status |
+|---|---|---|
+| `1` | LED menyala dan motor DC bergerak | Berhasil |
+| `0` | LED mati dan motor DC berhenti | Berhasil |
+
+Berdasarkan pengujian, ESP32 berhasil menerima perintah melalui Serial Monitor dan mengendalikan LED serta motor DC sesuai input. Perintah `1` mengaktifkan LED dan motor, sedangkan `0` mematikan LED dan menghentikan motor. Pengaturan PWM digunakan untuk mengendalikan keluaran motor dengan nilai `dutyCycle` sebesar 250 dari rentang 0–255.
+
+Hasil ini menunjukkan bahwa komunikasi serial, kontrol GPIO, dan pengendalian motor melalui PWM berfungsi sesuai rancangan program.
+
+# BAB 4: DOKUMENTASI PENGUJIAN
+
+
+### Gambar 4.1. Screanshot Serial Monitor
+
+
+### Gambar 4.2. IMCLAB dalam Kondisi Nyala dan Mati
+
+
+# BAB 5: KESIMPULAN
+
+Praktikum berhasil mengimplementasikan pengendalian LED dan motor DC menggunakan DOIT ESP32 DEVKIT V1 melalui komunikasi serial. Perintah `1` berhasil menyalakan LED dan menjalankan motor, sedangkan perintah `0` berhasil mematikan LED dan menghentikan motor. Pengujian ini menunjukkan bahwa kontrol GPIO dan PWM dapat digunakan untuk mengendalikan aktuator sesuai perintah yang diberikan.
