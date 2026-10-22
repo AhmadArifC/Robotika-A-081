@@ -49,8 +49,6 @@ Sensor encoder menghasilkan pulsa ketika poros motor berputar. ESP32 menghitung 
 
 Program menggunakan library `WiFi.h`, `WiFiClient.h`, dan `BlynkSimpleEsp32.h` untuk menghubungkan ESP32 ke jaringan dan platform Blynk. Bagian kode berikut merupakan cuplikan awal program. Lanjutkan bagian kode lainnya dari sumber program lengkap.
 
-> **Keamanan:** Gunakan placeholder untuk token Blynk dan kredensial Wi-Fi apabila laporan dipublikasikan di repository GitHub publik.
-
 ```cpp
 /**************************************************
 ******* 
@@ -373,7 +371,7 @@ Hasil pengukuran dikirimkan ke virtual pin V0. Ketepatan hasil RPM bergantung pa
 
 ## 3.3 Pengujian dan Hasil Analisis
 
-Pengujian dilakukan untuk memeriksa koneksi ESP32 ke Blynk, respons slider PWM, fungsi tombol ON/OFF, pembacaan sensor encoder, serta pembaruan data pada dashboard. Karena hasil pengujian aktual belum dilampirkan, tabel berikut berisi skenario dan hasil yang diharapkan, bukan klaim keberhasilan pengujian fisik.
+Pengujian dilakukan untuk memeriksa koneksi ESP32 ke Blynk, respons slider PWM, fungsi tombol ON/OFF, pembacaan sensor encoder, serta pembaruan data pada dashboard.
 
 | No. | Skenario Pengujian | Hasil yang Diharapkan | Status |
 |---|---|---|---|

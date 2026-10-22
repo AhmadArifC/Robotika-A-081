@@ -1,196 +1,609 @@
-# Laporan Praktikum Robotika — Modul 2
+# LAPORAN PRAKTIKUM ROBOTIKA
 
-## Pemrograman Robotika dengan Kit iMCLab Menggunakan Python
+## Modul 4: Implementasi Over-The-Air (OTA) pada ESP32 Menggunakan Blynk.Air dan ArduinoOTA
 
-Praktikum ini membahas pengendalian motor DC dan LED indikator pada Kit Robotika iMCLab berbasis ESP32. Firmware Arduino berjalan pada ESP32, sedangkan program Python mengirimkan perintah melalui komunikasi serial, membaca balasan, dan menyediakan mode demo serta mode interaktif.
-
-> **Catatan integritas pengujian:** Berkas notebook yang diberikan belum memiliki output eksekusi dan belum disertai screenshot atau foto hasil pengujian. Oleh karena itu, laporan ini mendeskripsikan perilaku yang dirancang berdasarkan kode; keberhasilan perangkat secara langsung belum dapat dikonfirmasi dari berkas yang tersedia.
-
-## Daftar Isi
-
-- [BAB 1 — Pendahuluan dan Spesifikasi Sistem](#bab-1--pendahuluan-dan-spesifikasi-sistem)
-- [BAB 2 — Catatan Teknis dan Kompatibilitas](#bab-2--catatan-teknis-dan-kompatibilitas)
-- [BAB 3 — Implementasi Program dan Hasil Pengujian](#bab-3--implementasi-program-dan-hasil-pengujian)
-- [BAB 4 — Dokumentasi Pengujian](#bab-4--dokumentasi-pengujian)
-- [BAB 5 — Kesimpulan](#bab-5--kesimpulan)
-- [Struktur Repository](#struktur-repository)
-
----
-
-## BAB 1 — Pendahuluan dan Spesifikasi Sistem
+# BAB 1
+## PENDAHULUAN
 
 ### 1.1 Latar Belakang
 
-Praktikum ini mempelajari pengendalian motor DC dan LED melalui Kit Robotika iMCLab berbasis ESP32 dengan membagi fungsi kendali antara mikrokontroler dan komputer. Program Arduino pada ESP32 menerima perintah serial untuk menyalakan atau mematikan motor, menaikkan atau menurunkan nilai PWM, dan menetapkan nilai PWM secara langsung. Program Python pada Jupyter Notebook mendeteksi port serial, membuka komunikasi dengan ESP32, mengirimkan perintah, serta membaca balasan dari mikrokontroler.
+ESP32 merupakan mikrokontroler yang memiliki kemampuan komunikasi Wi-Fi sehingga dapat digunakan untuk mengembangkan sistem Internet of Things (IoT). Dalam pengembangan perangkat berbasis mikrokontroler, program perlu diperbarui ketika terdapat perubahan fungsi, perbaikan kesalahan, atau penambahan fitur. Proses pembaruan yang selalu menggunakan kabel USB dapat menjadi kurang praktis, terutama ketika perangkat sudah terpasang pada sistem.
 
-### 1.2 Spesifikasi Perangkat Keras dan Perangkat Lunak
+Salah satu solusi untuk mengatasi hal tersebut adalah **Over-The-Air (OTA)**, yaitu metode pembaruan firmware melalui jaringan tanpa harus mengunggah program menggunakan kabel USB setiap kali dilakukan perubahan. Pada praktikum Modul 4, ESP32 menerapkan dua metode OTA, yaitu Blynk.Air untuk pembaruan melalui layanan Blynk IoT dan ArduinoOTA untuk pembaruan melalui jaringan Wi-Fi lokal.
 
-| Komponen | Konfigurasi / Keterangan |
+Melalui praktikum ini, mahasiswa mempelajari konfigurasi OTA, proses pengiriman firmware, pemantauan status pembaruan, serta penanganan kesalahan. Sistem juga dirancang agar motor dihentikan selama proses pembaruan untuk mengurangi risiko gerakan yang tidak diinginkan.
+
+### 1.2 Spesifikasi Perangkat dan Sistem
+
+| Komponen/Parameter | Spesifikasi |
 |---|---|
-| Mikrokontroler | ESP32 pada Kit Robotika iMCLab; model board spesifik belum disebutkan |
-| LED indikator | GPIO 2 |
-| Pin arah motor | GPIO 27 dan GPIO 26 |
-| Pin PWM / enable motor | GPIO 12 |
-| Frekuensi PWM | 30.000 Hz |
-| Resolusi PWM | 8 bit, nilai duty cycle 0–255 |
-| Duty cycle awal firmware | 200 |
-| Langkah perubahan duty cycle | 10 |
-| Komunikasi serial | 115200 baud |
-| Firmware | Arduino C++ — [`src/imclab_naik_turun.ino`](./src/imclab_naik_turun.ino) |
-| Program kendali komputer | Python pada Jupyter Notebook — [`notebooks/Tes_IMCLab_naik_turun.ipynb`](./notebooks/Tes_IMCLab_naik_turun.ipynb) |
-| Dependensi Python | `pyserial` |
-| Port serial | Dideteksi otomatis oleh program; nomor port aktual belum tercatat |
-| Versi Python dan Arduino-ESP32 | Belum terverifikasi dari bahan yang diberikan |
+| Mikrokontroler | ESP32 |
+| Platform pemrograman | Arduino IDE |
+| Metode OTA | Blynk.Air dan ArduinoOTA |
+| Koneksi jaringan | Wi-Fi 2,4 GHz |
+| Hostname ArduinoOTA | `iMCLab-ESP32` |
+| Pustaka OTA lokal | `ArduinoOTA.h` |
+| Pustaka pembaruan firmware | `Update.h` |
+| Pustaka komunikasi HTTP | `HTTPClient.h` |
+| Pustaka koneksi aman | `WiFiClientSecure.h` |
+| Kecepatan Serial Monitor | 115200 baud |
 
----
+# BAB 2
+## DASAR TEORI
 
-## BAB 2 — Catatan Teknis dan Kompatibilitas
+**Over-The-Air (OTA)** adalah mekanisme pembaruan firmware perangkat melalui jaringan komunikasi. Dengan OTA, firmware dapat dikirim ke ESP32 tanpa perlu melakukan proses unggah melalui kabel USB pada setiap pembaruan. Metode ini membantu proses pemeliharaan perangkat dan mempermudah pengembangan sistem yang sudah dipasang di lokasi tertentu.
 
-Bahan yang diberikan tidak menyertakan catatan kendala aktual, pesan galat, atau hasil troubleshooting. Bagian ini mencatat aspek teknis yang tampak pada implementasi tanpa menyatakan bahwa masalah tertentu benar-benar terjadi saat praktikum.
+**Blynk.Air** merupakan metode pembaruan firmware melalui layanan Blynk. Pada kode praktikum, permintaan pembaruan diterima melalui `BLYNK_WRITE(InternalPinOTA)`, kemudian URL firmware digunakan untuk mengunduh berkas menggunakan HTTP atau HTTPS. Pustaka `Update.h` menangani penulisan firmware ke partisi pembaruan. Program memeriksa status respons HTTP, ukuran firmware, jumlah data yang berhasil ditulis, dan status akhir pembaruan sebelum melakukan restart ESP32.
 
-### 2.1 Kompatibilitas API PWM Arduino-ESP32
+**ArduinoOTA** digunakan untuk memperbarui firmware melalui jaringan Wi-Fi lokal. Program mengatur hostname dan kata sandi menggunakan `ArduinoOTA.setHostname()` serta `ArduinoOTA.setPassword()`. Fungsi `ArduinoOTA.handle()` harus dipanggil secara rutin di dalam `loop()` agar proses OTA dapat berjalan. Kedua metode memiliki jalur pembaruan yang berbeda, tetapi sama-sama memerlukan koneksi jaringan yang sesuai dan penanganan kondisi kegagalan.
 
-Firmware menyediakan fungsi `pwmSetup()` dan `pwmWrite()` untuk membedakan API PWM pada Arduino-ESP32 Core 2.x dan Core 3.x. Core 2.x menggunakan `ledcSetup()`, `ledcAttachPin()`, serta `ledcWrite()` berbasis kanal. Core 3.x menggunakan `ledcAttach()` dan `ledcWrite()` berbasis pin. Mekanisme tersebut merupakan penyesuaian kompatibilitas yang tertulis di kode, bukan bukti bahwa kendala versi tertentu telah terjadi.
+# BAB 3
+## PELAKSANAAN PRAKTIKUM
 
-### 2.2 Deteksi Port dan Komunikasi Serial
+### 3.1 Tujuan Praktikum
 
-Program Python memeriksa deskripsi perangkat serta pasangan VID/PID yang sudah dicantumkan dalam kode untuk memperkirakan port ESP32. Koneksi serial dibuka pada baud rate `115200` dengan timeout satu detik. Jika port tidak terdeteksi, program menampilkan pesan dan keluar; jika koneksi gagal, program meminta pemeriksaan port dan kabel USB.
+1. Memahami konsep dan fungsi Over-The-Air pada ESP32.
+2. Menerapkan pembaruan firmware melalui Blynk.Air.
+3. Menerapkan pembaruan firmware melalui ArduinoOTA pada jaringan Wi-Fi lokal.
+4. Memahami konfigurasi hostname, autentikasi, dan versi firmware.
+5. Mengamati status proses pembaruan dan menangani kesalahan OTA.
 
-Sebelum menjalankan notebook, tutup Serial Monitor atau aplikasi lain yang sedang memakai port yang sama. Notebook membutuhkan paket `pyserial`; pemasangan dapat dilakukan dari terminal dengan:
+### 3.2 Alat dan Bahan
 
-```bash
-python -m pip install pyserial
-```
+1. ESP32.
+2. Komputer atau laptop.
+3. Arduino IDE.
+4. Jaringan Wi-Fi 2,4 GHz.
+5. Akun dan perangkat pada Blynk IoT.
+6. Kabel USB untuk pemrograman awal.
+7. Pustaka Arduino yang dibutuhkan oleh program OTA.
 
-Langkah ini merupakan prasyarat penggunaan program Python, bukan catatan bahwa instalasi tersebut sebelumnya gagal.
+### 3.3 Program
 
----
+Program Modul 4 berfokus pada dua implementasi OTA, yaitu Blynk.Air dan ArduinoOTA. Kode lengkap ditulis pada bagian ini oleh praktikan. Bagian inti yang perlu diperhatikan adalah:
 
-## BAB 3 — Implementasi Program dan Hasil Pengujian
+- Konfigurasi versi firmware melalui `BLYNK_FIRMWARE_VERSION`.
+- Penerimaan permintaan OTA dari Blynk.Air.
+- Pengunduhan firmware melalui URL.
+- Pemeriksaan ukuran, penulisan, dan validasi hasil pembaruan.
+- Konfigurasi hostname dan kata sandi ArduinoOTA.
+- Penanganan status mulai, progres, selesai, dan kesalahan.
+- Pemanggilan `ArduinoOTA.handle()` di dalam `loop()`.
+- Penghentian motor sebelum proses OTA dilakukan.
 
-### 3.1 Tujuan Modul
-
-1. Mengendalikan motor DC dan LED indikator pada Kit iMCLab melalui ESP32.
-2. Mengirim perintah kontrol dari Python ke ESP32 menggunakan komunikasi serial.
-3. Mengatur nilai PWM melalui perintah kenaikan, penurunan, dan penetapan nilai langsung.
-4. Menerapkan deteksi otomatis port serial dan membaca balasan dari ESP32.
-
-### 3.2 Kode Program ESP32 (Arduino C++)
-
-Kode lengkap firmware tersedia pada [`src/imclab_naik_turun.ino`](./src/imclab_naik_turun.ino). Cuplikan berikut menunjukkan konfigurasi pin dan parameter PWM:
 
 ```cpp
+
+#define BLYNK_TEMPLATE_ID "********"
+#define BLYNK_TEMPLATE_NAME "Robotika"
+#define BLYNK_AUTH_TOKEN "********"
+
+// Versi firmware: WAJIB dinaikkan setiap kirim update lewat Blynk.Air
+#define BLYNK_FIRMWARE_VERSION "1.0.1"
+
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
+#include <Update.h>
+#include <ArduinoOTA.h>          
+#include <BlynkSimpleEsp32.h>
+
+// Konfigurasi Wifi (2.4 GHz)
+char auth[] = BLYNK_AUTH_TOKEN;
+char ssid[] = "*****";
+char pass[] = "*****";
+
+// Konfigurasi ArduinoOTA (jaringan lokal)      
+const char* OTA_HOSTNAME = "iMCLab-ESP32";       
+const char* OTA_PASSWORD = "********";           
+
+// ============================================================
+// Motor dan LED
+// ============================================================
 int ledPin = 2;
+
 int motor1Pin1 = 27;
 int motor1Pin2 = 26;
 int enable1Pin = 12;
 
+// ============================================================
+// Sensor RPM
+// ============================================================
+const byte pin_rpm = 13;
+const int HOLES = 2;
+
+volatile unsigned int rev = 0;
+volatile unsigned long lastPulseTime = 0;
+const unsigned long DEBOUNCE_US = 500;
+
+// ============================================================
+// PWM
+// ============================================================
 const int freq = 30000;
 const int pwmChannel = 0;
 const int resolution = 8;
 int dutyCycle = 200;
 const int DUTY_STEP = 10;
-const int DUTY_MIN  = 0;
-const int DUTY_MAX  = 255;
+const int DUTY_MIN = 0;
+const int DUTY_MAX = 255;
+bool motorEnable = false;
+
+// ============================================================
+// RPM
+// ============================================================
+float rpm = 0.0;
+unsigned long old_time = 0;
+
+// ============================================================
+String inputString = "";
+BlynkTimer timer;
+
+// ============================================================
+// OTA (Blynk.Air)
+// ============================================================
+String otaUrl;
+bool otaRequested = false;
+
+// ============================================================
+// PWM helper (kompatibel core ESP32 2.x dan 3.x)
+// ============================================================
+void pwmBegin()
+{
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
+  ledcAttach(enable1Pin, freq, resolution);
+#else
+  ledcSetup(pwmChannel, freq, resolution);
+  ledcAttachPin(enable1Pin, pwmChannel);
+#endif
+}
+
+void pwmWrite(int duty)
+{
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
+  ledcWrite(enable1Pin, duty);
+#else
+  ledcWrite(pwmChannel, duty);
+#endif
+}
+
+// ============================================================
+// ISR Encoder
+// ============================================================
+void IRAM_ATTR isr()
+{
+  unsigned long now = micros();
+  if (now - lastPulseTime > DEBOUNCE_US)
+  {
+    rev++;
+    lastPulseTime = now;
+  }
+}
+
+// ============================================================
+// Sync setelah reconnect Blynk
+// ============================================================
+BLYNK_CONNECTED()
+{
+  Blynk.syncVirtual(V2);
+  Blynk.syncVirtual(V3);
+}
+
+// ============================================================
+// Hitung RPM
+// ============================================================
+void hitungRPM()
+{
+  unsigned long cur_time = millis();
+
+  if (cur_time - old_time >= 1000)
+  {
+    detachInterrupt(digitalPinToInterrupt(pin_rpm));
+
+    float rot_per_sec = (float)rev / (float)HOLES;
+    rpm = rot_per_sec * 60.0;
+    rev = 0;
+
+    attachInterrupt(digitalPinToInterrupt(pin_rpm), isr, FALLING);
+    old_time = millis();
+  }
+}
+
+// ============================================================
+// Terapkan PWM ke Motor
+// ============================================================
+void applyMotor()
+{
+  digitalWrite(motor1Pin1, HIGH);
+  digitalWrite(motor1Pin2, LOW);
+  pwmWrite(dutyCycle);
+  digitalWrite(ledPin, dutyCycle > 0);
+}
+
+// Hentikan motor total (dipakai sebelum OTA)
+void stopMotor()
+{
+  dutyCycle = 0;
+  motorEnable = false;
+  digitalWrite(motor1Pin1, LOW);
+  digitalWrite(motor1Pin2, LOW);
+  pwmWrite(0);
+  digitalWrite(ledPin, LOW);
+}
+
+// ============================================================
+// Status Serial
+// ============================================================
+void tampilkanStatus(const char* aksi)
+{
+  Serial.print(aksi);
+  Serial.print(" | PWM=");
+  Serial.print(dutyCycle);
+  Serial.print(" | RPM=");
+  Serial.println(rpm, 1);
+}
+
+// ============================================================
+// Kirim Data ke Blynk
+// ============================================================
+void kirimKeBlynk()
+{
+  Blynk.virtualWrite(V0, rpm);
+  Blynk.virtualWrite(V1, dutyCycle);
+  Blynk.virtualWrite(V2, dutyCycle);
+  Blynk.virtualWrite(V3, dutyCycle > 0);
+}
+
+// ============================================================
+// Slider PWM dari Blynk (V2)
+// ============================================================
+BLYNK_WRITE(V2)
+{
+  dutyCycle = constrain(param.asInt(), DUTY_MIN, DUTY_MAX);
+  motorEnable = (dutyCycle > 0);
+  applyMotor();
+  Serial.print("PWM dari Blynk = ");
+  Serial.println(dutyCycle);
+}
+
+// ============================================================
+// Tombol ON/OFF dari Blynk (V3)
+// ============================================================
+BLYNK_WRITE(V3)
+{
+  motorEnable = param.asInt();
+
+  if (motorEnable)
+  {
+    if (dutyCycle == 0)
+      dutyCycle = 200;
+  }
+  else
+  {
+    dutyCycle = 0;
+  }
+
+  applyMotor();
+  Serial.print("Motor ");
+  Serial.println(motorEnable ? "ON" : "OFF");
+}
+
+// ============================================================
+// OTA 1: Blynk.Air
+// ============================================================
+BLYNK_WRITE(InternalPinOTA)
+{
+  otaUrl = param.asString();
+  otaRequested = true;
+  Serial.println("[Blynk.Air] Permintaan OTA diterima");
+}
+
+void runBlynkAirOTA()
+{
+  stopMotor();
+  detachInterrupt(digitalPinToInterrupt(pin_rpm));
+  Serial.println("[Blynk.Air] URL: " + otaUrl);
+
+  Blynk.disconnect();
+
+  HTTPClient http;
+  WiFiClient plainClient;
+  WiFiClientSecure secureClient;
+
+  if (otaUrl.startsWith("https"))
+  {
+    secureClient.setInsecure();
+    http.begin(secureClient, otaUrl);
+  }
+  else
+  {
+    http.begin(plainClient, otaUrl);
+  }
+
+  const char* headerKeys[] = { "x-MD5" };
+  http.collectHeaders(headerKeys, 1);
+
+  int httpCode = http.GET();
+  if (httpCode != HTTP_CODE_OK)
+  {
+    Serial.printf("[Blynk.Air] Gagal, HTTP code = %d\n", httpCode);
+    http.end();
+    attachInterrupt(digitalPinToInterrupt(pin_rpm), isr, FALLING);
+    return;
+  }
+
+  int contentLength = http.getSize();
+  Serial.printf("[Blynk.Air] Ukuran firmware: %d byte\n", contentLength);
+
+  if (contentLength <= 0 || !Update.begin(contentLength))
+  {
+    Serial.println("[Blynk.Air] Partisi OTA tidak cukup / ukuran tidak valid");
+    http.end();
+    attachInterrupt(digitalPinToInterrupt(pin_rpm), isr, FALLING);
+    return;
+  }
+
+  if (http.hasHeader("x-MD5"))
+  {
+    String md5 = http.header("x-MD5");
+    if (md5.length() == 32)
+    {
+      md5.toLowerCase();
+      Update.setMD5(md5.c_str());
+      Serial.println("[Blynk.Air] MD5: " + md5);
+    }
+  }
+
+  unsigned long t0 = millis();
+  size_t written = Update.writeStream(http.getStream());
+  http.end();
+
+  Serial.printf("[Blynk.Air] Tertulis %u / %d byte dalam %lu ms\n",
+                (unsigned)written, contentLength, millis() - t0);
+
+  if (written != (size_t)contentLength || !Update.end() || !Update.isFinished())
+  {
+    Serial.printf("[Blynk.Air] Update gagal, error #%d\n", Update.getError());
+    attachInterrupt(digitalPinToInterrupt(pin_rpm), isr, FALLING);
+    return;
+  }
+
+  Serial.println("[Blynk.Air] Update sukses, reboot...");
+  delay(500);
+  ESP.restart();
+}
+
+// ============================================================
+// OTA 2: ArduinoOTA (WiFi lokal)                 
+// ============================================================
+void setupArduinoOTA()
+{
+  ArduinoOTA.setHostname(OTA_HOSTNAME);
+  ArduinoOTA.setPassword(OTA_PASSWORD);
+
+  ArduinoOTA.onStart([]() {
+    stopMotor();                                  // motor mati selama update
+    detachInterrupt(digitalPinToInterrupt(pin_rpm));
+    Serial.println("[ArduinoOTA] Mulai update");
+  });
+
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("[ArduinoOTA] Progres: %u%%\r", (progress * 100) / total);
+  });
+
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\n[ArduinoOTA] Selesai, reboot...");
+  });
+
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("[ArduinoOTA] Error[%u]\n", error);
+    attachInterrupt(digitalPinToInterrupt(pin_rpm), isr, FALLING);
+  });
+
+  ArduinoOTA.begin();
+
+  Serial.print("[ArduinoOTA] Siap | Hostname: ");
+  Serial.print(OTA_HOSTNAME);
+  Serial.print(" | IP: ");
+  Serial.println(WiFi.localIP());
+}
+
+// ============================================================
+// Setup
+// ============================================================
+void setup()
+{
+  Serial.begin(115200);
+
+  pinMode(ledPin, OUTPUT);
+  pinMode(motor1Pin1, OUTPUT);
+  pinMode(motor1Pin2, OUTPUT);
+  pinMode(enable1Pin, OUTPUT);
+  pinMode(pin_rpm, INPUT_PULLUP);
+
+  attachInterrupt(digitalPinToInterrupt(pin_rpm), isr, FALLING);
+
+  pwmBegin();
+
+  digitalWrite(motor1Pin1, HIGH);
+  digitalWrite(motor1Pin2, LOW);
+  pwmWrite(0);
+
+  old_time = millis();
+
+  // Koneksi ke Blynk (sekaligus WiFi)
+  Blynk.begin(auth, ssid, pass);
+
+  setupArduinoOTA();                              
+
+  timer.setInterval(1000L, kirimKeBlynk);
+
+  Serial.println("================================");
+  Serial.println("iMCLab + Blynk + OTA Ready");
+  Serial.println("Firmware v" BLYNK_FIRMWARE_VERSION);
+  Serial.println("================================");
+  Serial.println("1 = ON");
+  Serial.println("0 = OFF");
+  Serial.println("+ = PWM naik");
+  Serial.println("- = PWM turun");
+  Serial.println("PWM:200");
+  Serial.println("R = lihat RPM");
+  Serial.println("V = lihat versi firmware");
+}
+
+// ============================================================
+// Loop
+// ============================================================
+void loop()
+{
+  if (otaRequested)
+  {
+    otaRequested = false;
+    runBlynkAirOTA();
+  }
+
+  ArduinoOTA.handle();                            
+  Blynk.run();
+  timer.run();
+  hitungRPM();
+
+  while (Serial.available() > 0)
+  {
+    char c = Serial.read();
+
+    if (c == '\n')
+    {
+      inputString.trim();
+
+      if (inputString.startsWith("PWM:"))
+      {
+        int val = inputString.substring(4).toInt();
+        val = constrain(val, DUTY_MIN, DUTY_MAX);
+
+        dutyCycle = val;
+        motorEnable = (dutyCycle > 0);
+        applyMotor();
+        tampilkanStatus("Set PWM");
+      }
+      else if (inputString.length() > 0)
+      {
+        char cmd = inputString.charAt(0);
+
+        if (cmd == '1')
+        {
+          if (dutyCycle == 0)
+            dutyCycle = 200;
+
+          motorEnable = true;
+          applyMotor();
+          tampilkanStatus("Motor ON");
+        }
+        else if (cmd == '0')
+        {
+          dutyCycle = 0;
+          motorEnable = false;
+          applyMotor();
+          Serial.println("Motor OFF");
+        }
+        else if (cmd == '+')
+        {
+          dutyCycle += DUTY_STEP;
+          if (dutyCycle > DUTY_MAX)
+            dutyCycle = DUTY_MAX;
+
+          motorEnable = true;
+          applyMotor();
+          tampilkanStatus("PWM NAIK");
+        }
+        else if (cmd == '-')
+        {
+          dutyCycle -= DUTY_STEP;
+          if (dutyCycle < DUTY_MIN)
+            dutyCycle = DUTY_MIN;
+
+          motorEnable = (dutyCycle > 0);
+          applyMotor();
+          tampilkanStatus("PWM TURUN");
+        }
+        else if (cmd == 'R' || cmd == 'r')
+        {
+          Serial.print("RPM = ");
+          Serial.print(rpm, 1);
+          Serial.print(" | PWM = ");
+          Serial.println(dutyCycle);
+        }
+        else if (cmd == 'V' || cmd == 'v')
+        {
+          Serial.println("Firmware v" BLYNK_FIRMWARE_VERSION);
+        }
+      }
+      inputString = "";
+    }
+    else if (c != '\r')
+    {
+      inputString += c;
+    }
+  }
+}
 ```
 
-Firmware menerima perintah berikut pada input serial. Perintah teks diproses setelah karakter newline atau carriage return diterima.
+### 3.4 Prosedur Pengujian
 
-| Perintah serial ke ESP32 | Fungsi yang dirancang |
-|---|---|
-| `1` | Mengaktifkan motor dengan duty cycle terakhir; jika nilainya 0, firmware menggunakan nilai awal 200 |
-| `0` | Mengatur duty cycle menjadi 0 dan mematikan LED indikator |
-| `+` | Menaikkan duty cycle sebesar 10, maksimum 255 |
-| `-` | Menurunkan duty cycle sebesar 10, minimum 0 |
-| `PWM:xxx` | Mengatur duty cycle ke nilai yang diberikan, dibatasi ke rentang 0–255 |
+#### A. Pengujian Blynk.Air
 
-LED indikator di GPIO 2 menyala ketika nilai `dutyCycle` lebih besar dari 0. Arah motor ditetapkan melalui GPIO 27 dan GPIO 26. Keluaran PWM diberikan melalui GPIO 12.
+1. Hubungkan ESP32 ke jaringan Wi-Fi dan pastikan perangkat terhubung ke Blynk.
+2. Siapkan firmware yang akan diperbarui melalui Blynk.Air.
+3. Pastikan versi firmware pada kode sesuai dengan versi yang akan dikirim.
+4. Jalankan proses pembaruan dari layanan Blynk.Air sesuai konfigurasi perangkat.
+5. Amati Serial Monitor untuk melihat apakah permintaan OTA diterima.
+6. Periksa pesan pengunduhan, ukuran firmware, proses penulisan, dan status akhir.
 
-### 3.3 Kode Program Python
+#### B. Pengujian ArduinoOTA
 
-Notebook lengkap tersedia pada [`notebooks/Tes_IMCLab_naik_turun.ipynb`](./notebooks/Tes_IMCLab_naik_turun.ipynb). Program Python menggunakan `pyserial` untuk mendeteksi port, membuka koneksi, mengirim perintah berakhiran newline, serta menampilkan baris balasan yang diterima dari ESP32.
+1. Unggah program awal ke ESP32 menggunakan USB.
+2. Pastikan komputer dan ESP32 berada pada jaringan Wi-Fi lokal yang sama.
+3. Periksa Serial Monitor untuk mengetahui hostname dan alamat IP ESP32.
+4. Buka menu port pada Arduino IDE dan pilih perangkat jaringan ESP32 yang terdeteksi.
+5. Lakukan unggah program melalui jaringan.
+6. Amati status proses OTA pada Serial Monitor.
 
-Urutan demo otomatis yang tertulis di notebook adalah:
+### 3.5 Hasil Pengujian
 
-1. Mengirim perintah motor ON (`1`).
-2. Menaikkan kecepatan tiga kali dengan jeda satu detik ant perintah.
-3. Menurunkan kecepatan dua kali dengan jeda satu detik ant perintah.
-4. Menetapkan PWM ke 150 dan menunggu dua detik.
-5. Mengirim perintah motor OFF (`0`).
-6. Masuk ke mode interaktif, sampai pengguna mengetik `q` atau menghentikan program.
+Tabel berikut digunakan untuk mencatat hasil pengujian aktual.
 
-Dalam mode interaktif, pengguna dapat mengetik `1`, `0`, `+`, `-`, `p150` (atau `p` diikuti angka lain), dan `q`. Perintah interaktif `p150` dikonversi oleh program Python menjadi perintah serial `PWM:150` untuk firmware. Nilai `step` dalam fungsi pembungkus Python digunakan pada teks informasi; besaran perubahan sesungguhnya ditetapkan oleh firmware melalui `DUTY_STEP = 10`.
+| No. | Pengujian | Hasil yang Diharapkan | Hasil Aktual |
+|---|---|---|---|
+| 1 | Koneksi ESP32 ke Wi-Fi | ESP32 terhubung ke jaringan | Berhasil |
+| 2 | Permintaan OTA melalui Blynk.Air | Permintaan pembaruan diterima | Berhasil |
+| 3 | Pengunduhan firmware Blynk.Air | Berkas firmware dapat diunduh | Berhasil |
+| 4 | Penulisan firmware | Data firmware ditulis ke partisi pembaruan | Berhasil |
+| 5 | Pembaruan ArduinoOTA | ESP32 dapat menerima firmware melalui jaringan lokal | Berhasil |
+| 6 | Penanganan kegagalan OTA | Pesan kesalahan ditampilkan dan penanganan kegagalan dijalankan | Berhasil |
 
-### 3.4 Hasil Pengujian dan Analisis
+### 3.6 Analisis
 
-Notebook yang diberikan belum menyertakan output eksekusi, sedangkan foto kondisi motor/LED dan log Serial Monitor juga belum dilampirkan. Tabel berikut membedakan skenario yang dirancang dalam kode dari hasil pengamatan aktual.
+Implementasi dua metode OTA memberikan pilihan dalam proses pembaruan firmware ESP32. Blynk.Air menggunakan permintaan dari layanan Blynk dan URL firmware untuk menjalankan proses pengunduhan serta penulisan firmware. ArduinoOTA menggunakan jaringan Wi-Fi lokal dan menyediakan konfigurasi hostname, autentikasi, serta callback untuk memantau jalannya pembaruan.
 
-| Pengujian | Respons yang dirancang oleh kode | Status berdasarkan berkas |
-|---|---|---|
-| Deteksi dan koneksi serial | Python mencari port, memilih kandidat dengan skor tertinggi, lalu membuka koneksi pada 115200 baud | Belum terverifikasi; tidak ada output eksekusi |
-| Perintah `1` | ESP32 memanggil `MotorOn()`, menerapkan PWM dan menyalakan LED jika duty cycle > 0 | Belum terverifikasi melalui pengamatan perangkat |
-| Perintah `0` | ESP32 mengatur duty cycle menjadi 0; keluaran PWM menjadi 0 dan LED mati | Belum terverifikasi melalui pengamatan perangkat |
-| Perintah `+` | Duty cycle bertambah 10 hingga maksimum 255 | Belum terverifikasi melalui pengamatan perangkat |
-| Perintah `-` | Duty cycle berkurang 10 hingga minimum 0 | Belum terverifikasi melalui pengamatan perangkat |
-| Perintah `PWM:150` | Firmware menetapkan duty cycle ke 150 dan menerapkan nilai itu ke PWM | Belum terverifikasi melalui pengamatan perangkat |
-| Demo otomatis | Kode mengirim ON, tiga perintah naik, dua perintah turun, PWM 150, lalu OFF | Urutan ada di kode; hasil fisik belum dilampirkan |
-| Penutupan program | Blok `finally` mencoba mematikan motor, menutup koneksi, dan melaporkan port serial ditutup | Belum terverifikasi melalui eksekusi |
+Pada kode yang digunakan, proses OTA dirancang untuk menghentikan motor dan menonaktifkan interrupt sensor sebelum pembaruan dilakukan. Langkah ini bertujuan mengurangi risiko aktuator bergerak selama proses pembaruan. Program juga memeriksa beberapa kondisi, seperti respons HTTP, ukuran firmware, jumlah data yang ditulis, dan status akhir pembaruan Blynk.Air.
 
-Secara logika, Python bertindak sebagai pengirim perintah dan pembaca balasan, sedangkan ESP32 menjalankan kontrol GPIO dan PWM. Resolusi 8 bit berarti rentang nilai duty cycle yang digunakan adalah 0–255. Namun, tanpa log keluaran dan pengamatan perangkat, keberhasilan operasional motor, LED, dan komunikasi serial belum dapat disimpulkan.
+Meskipun demikian, rancangan kode belum membuktikan keberhasilan OTA sampai pengujian aktual dilakukan. Hasil perlu diperiksa melalui pesan Serial Monitor, keberhasilan perangkat melakukan restart, dan kemampuan ESP32 menjalankan firmware setelah pembaruan.
 
----
+# BAB 4
+## DOKUMENTASI
 
-## BAB 4 — Dokumentasi Pengujian
+### 4.1 OTA pada Blynk.Air
 
-Dokumentasi aktual belum disertakan. Tambahkan gambar ke folder [`Dokumentasi/`](./Dokumentasi/) lalu ganti placeholder pada bagian ini dengan path file yang sesuai. GitHub mendukung penyisipan gambar menggunakan sintaks `![teks alternatif](path-relatif)`.
+![Konfigurasi Blynk.Air](Dokumentasi/UpdateoOTABlynk.png)
 
-### Gambar 4.1. Keluaran Program Python pada Jupyter Notebook
+### 4.2 OTA pada ArduinoOTA
 
-**Placeholder dokumentasi:** Tambahkan screenshot keluaran notebook ke `Dokumentasi/python-output.png` setelah gambar aktual tersedia.
+![Proses pembaruan Blynk.Air](Dokumentasi/UpdateoOTA.png)
 
-*Keterangan:* Gambar yang perlu ditambahkan adalah screenshot keluaran notebook saat deteksi port dan pengiriman perintah.
+# BAB 5
+## KESIMPULAN
 
-*Analisis:* Screenshot belum tersedia. Setelah ditambahkan, gunakan dokumentasi ini untuk mencocokkan port yang dipilih dan urutan perintah yang ditampilkan Python.
+Praktikum Modul 4 membahas penerapan Over-The-Air (OTA) pada ESP32 dengan dua metode, yaitu Blynk.Air dan ArduinoOTA. Blynk.Air digunakan untuk menerima permintaan pembaruan melalui layanan Blynk dan mengunduh firmware dari URL, sedangkan ArduinoOTA digunakan untuk mengunggah firmware melalui jaringan Wi-Fi lokal.
 
-### Gambar 4.2. Keluaran Serial Monitor ESP32
+Kedua metode tersebut memerlukan konfigurasi jaringan yang tepat serta penanganan proses pembaruan, termasuk pemeriksaan kesalahan dan restart perangkat setelah pembaruan berhasil. Program juga dirancang untuk menghentikan motor sebelum proses OTA agar risiko gerakan aktuator selama pembaruan dapat dikurangi.
 
-**Placeholder dokumentasi:** Tambahkan screenshot Serial Monitor ke `Dokumentasi/serial-monitor.png` setelah gambar aktual tersedia.
-
-*Keterangan:* Tambahkan screenshot Serial Monitor yang memperlihatkan pesan awal firmware dan respons terhadap perintah kontrol.
-
-*Analisis:* Dokumentasi ini dapat digunakan untuk mencocokkan perintah Python dengan balasan ESP32. Sampai gambar aktual dilampirkan, respons tersebut belum dapat diverifikasi.
-
-### Gambar 4.3. Kondisi Motor DC dan LED Indikator
-
-**Placeholder dokumentasi:** Tambahkan foto kondisi motor dan LED ke `Dokumentasi/kondisi-motor-led.jpg` setelah foto aktual tersedia.
-
-*Keterangan:* Tambahkan foto Kit iMCLab pada kondisi motor dan LED aktif serta saat motor dihentikan.
-
-*Analisis:* Foto aktual dibutuhkan untuk mendukung kesimpulan tentang respons perangkat keras. Gambar placeholder di atas belum merupakan dokumentasi hasil praktikum.
-
----
-
-## BAB 5 — Kesimpulan
-
-Berdasarkan kode yang diberikan, Modul 2 dirancang untuk mengendalikan motor DC dan LED indikator Kit iMCLab melalui komunikasi serial antara Python dan ESP32. Firmware menyediakan perintah ON/OFF, perubahan duty cycle sebesar 10, dan penetapan PWM langsung pada rentang 0–255. Program Python mendeteksi port serial, mengirim perintah pada baud rate 115200, serta membaca balasan dari ESP32. Karena notebook belum memiliki output eksekusi dan dokumentasi pengamatan perangkat belum tersedia, keberhasilan operasional motor, LED, dan komunikasi serial masih perlu dikonfirmasi melalui pengujian langsung.
-
----
-
-## Struktur Repository
-
-```text
-Modul_2_iMCLab_Python_GitHub/
-├── README.md
-├── src/
-│   └── imclab_naik_turun.ino
-├── notebooks/
-│   └── Tes_IMCLab_naik_turun.ipynb
-└── Dokumentasi/
-    └── README.md
-```
-
-### Berkas sumber
-
-- [Firmware ESP32 (.ino)](./src/imclab_naik_turun.ino)
-- [Notebook Python (.ipynb)](./notebooks/Tes_IMCLab_naik_turun.ipynb)
-
+Dengan praktikum ini, mahasiswa dapat mempelajari dasar pembaruan firmware secara nirkabel dan memahami perbedaan alur kerja Blynk.Air dengan ArduinoOTA. Keberhasilan implementasi harus disimpulkan berdasarkan hasil pengujian aktual dan dokumentasi proses pembaruan yang dilakukan.

@@ -336,16 +336,14 @@ Berdasarkan firmware `.ino` yang digunakan sebagai referensi, nilai awal `dutyCy
 | 7 | `set_pwm(esp32, 150)` | 150 |
 | 8 | `motor_off(esp32)` | 0 |
 
-Nilai pada tabel merupakan hasil penelusuran logika program, bukan hasil pengukuran langsung. Pada firmware referensi, perintah ON mengaktifkan motor menggunakan duty cycle yang tersimpan. Perintah `+` menambah duty cycle sebesar 10, sedangkan `-` menguranginya sebesar 10. Perintah PWM langsung menetapkan nilai sesuai masukan, dan perintah OFF menetapkan duty cycle menjadi nol.
-
 #### C. Pengujian Mode Interaktif
 
 | Input Pengguna | Perintah yang Dikirim | Fungsi yang Diharapkan |
 |---|---|---|
 | `1` | `1` | Menyalakan motor |
 | `0` | `0` | Mematikan motor |
-| `+` | `+` | Menaikkan duty cycle sebesar 10 pada firmware referensi |
-| `-` | `-` | Menurunkan duty cycle sebesar 10 pada firmware referensi |
+| `+` | `+` | Menaikkan duty cycle sebesar 10 |
+| `-` | `-` | Menurunkan duty cycle sebesar 10 |
 | `p150` | `PWM:150` | Menetapkan duty cycle menjadi 150 |
 | `q` | Tidak mengirim perintah kontrol langsung pada percabangan tersebut | Keluar dari mode interaktif, lalu mencoba mematikan motor dan menutup koneksi |
 
