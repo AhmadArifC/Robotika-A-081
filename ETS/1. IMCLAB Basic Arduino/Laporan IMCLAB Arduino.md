@@ -129,9 +129,12 @@ Hasil ini menunjukkan bahwa komunikasi serial, kontrol GPIO, dan pengendalian mo
 
 # BAB 4: DOKUMENTASI PENGUJIAN
 
-
+![Screanshot Serial Monitor](dokumentasi/Serial Monitor saat mengirim perintah.png)
 ### Gambar 4.1. Screanshot Serial Monitor
 
+![Screanshot Serial Monitor](Dokumentasi/LED dan Motor Mati.jpeg)
+
+![Screanshot Serial Monitor](Dokumentasi/LED dan Motor Nyala.jpeg)
 
 ### Gambar 4.2. IMCLAB dalam Kondisi Nyala dan Mati
 
