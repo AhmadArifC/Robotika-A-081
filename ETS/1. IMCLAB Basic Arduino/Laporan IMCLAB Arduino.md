@@ -129,15 +129,23 @@ Hasil ini menunjukkan bahwa komunikasi serial, kontrol GPIO, dan pengendalian mo
 
 # BAB 4: DOKUMENTASI PENGUJIAN
 
-![Screanshot Serial Monitor](dokumentasi/Serial Monitor saat mengirim perintah.png)
-### Gambar 4.1. Screanshot Serial Monitor
+### Gambar 4.1. Screenshot Serial Monitor
 
-![Screanshot Serial Monitor](Dokumentasi/LED dan Motor Mati.jpeg)
+![Screenshot Serial Monitor](Dokumentasi/Serial%20Monitor%20saat%20mengirim%20perintah.png)
 
-![Screanshot Serial Monitor](Dokumentasi/LED dan Motor Nyala.jpeg)
+Keterangan: Tampilan Serial Monitor saat menerima perintah untuk menyalakan dan mematikan LED serta motor DC.
 
-### Gambar 4.2. IMCLAB dalam Kondisi Nyala dan Mati
+### Gambar 4.2. Kondisi LED dan Motor Mati
 
+![LED dan Motor Mati](Dokumentasi/LED%20dan%20Motor%20Mati.jpeg)
+
+Keterangan: Kondisi LED dan motor DC saat sistem dimatikan.
+
+### Gambar 4.3. Kondisi LED dan Motor Menyala
+
+![LED dan Motor Nyala](Dokumentasi/LED%20dan%20Motor%20Nyala.jpeg)
+
+Keterangan: Kondisi LED dan motor DC saat sistem diaktifkan.
 
 # BAB 5: KESIMPULAN
 
