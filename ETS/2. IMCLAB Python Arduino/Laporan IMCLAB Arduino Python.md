@@ -1,196 +1,385 @@
-# Laporan Praktikum Robotika — Modul 2
+# LAPORAN PRAKTIKUM ROBOTIKA
 
-## Pemrograman Robotika dengan Kit iMCLab Menggunakan Python
+## Modul 2: Pemrograman Robotika dengan Kit iMCLab Menggunakan Python
 
-Praktikum ini membahas pengendalian motor DC dan LED indikator pada Kit Robotika iMCLab berbasis ESP32. Firmware Arduino berjalan pada ESP32, sedangkan program Python mengirimkan perintah melalui komunikasi serial, membaca balasan, dan menyediakan mode demo serta mode interaktif.
+# BAB 1: PENDAHULUAN DAN SPESIFIKASI SISTEM
 
-> **Catatan integritas pengujian:** Berkas notebook yang diberikan belum memiliki output eksekusi dan belum disertai screenshot atau foto hasil pengujian. Oleh karena itu, laporan ini mendeskripsikan perilaku yang dirancang berdasarkan kode; keberhasilan perangkat secara langsung belum dapat dikonfirmasi dari berkas yang tersedia.
+## 1.1 Latar Belakang
 
-## Daftar Isi
+Praktikum ini mempelajari pengendalian motor DC pada Kit Robotika iMCLab berbasis ESP32 menggunakan Python. Program Python dijalankan melalui Jupyter Notebook untuk mendeteksi port serial secara otomatis, mengirimkan perintah ke ESP32, dan membaca respons dari mikrokontroler. Perintah yang digunakan meliputi menyalakan dan mematikan motor, menaikkan dan menurunkan nilai PWM, serta menetapkan nilai PWM secara langsung. Praktikum ini berfokus pada pemanfaatan Python sebagai antarmuka kendali robotika melalui komunikasi serial.
 
-- [BAB 1 — Pendahuluan dan Spesifikasi Sistem](#bab-1--pendahuluan-dan-spesifikasi-sistem)
-- [BAB 2 — Catatan Teknis dan Kompatibilitas](#bab-2--catatan-teknis-dan-kompatibilitas)
-- [BAB 3 — Implementasi Program dan Hasil Pengujian](#bab-3--implementasi-program-dan-hasil-pengujian)
-- [BAB 4 — Dokumentasi Pengujian](#bab-4--dokumentasi-pengujian)
-- [BAB 5 — Kesimpulan](#bab-5--kesimpulan)
-- [Struktur Repository](#struktur-repository)
+## 1.2 Spesifikasi Perangkat dan Sistem
 
----
-
-## BAB 1 — Pendahuluan dan Spesifikasi Sistem
-
-### 1.1 Latar Belakang
-
-Praktikum ini mempelajari pengendalian motor DC dan LED melalui Kit Robotika iMCLab berbasis ESP32 dengan membagi fungsi kendali antara mikrokontroler dan komputer. Program Arduino pada ESP32 menerima perintah serial untuk menyalakan atau mematikan motor, menaikkan atau menurunkan nilai PWM, dan menetapkan nilai PWM secara langsung. Program Python pada Jupyter Notebook mendeteksi port serial, membuka komunikasi dengan ESP32, mengirimkan perintah, serta membaca balasan dari mikrokontroler.
-
-### 1.2 Spesifikasi Perangkat Keras dan Perangkat Lunak
-
-| Komponen | Konfigurasi / Keterangan |
+| Komponen | Spesifikasi |
 |---|---|
-| Mikrokontroler | ESP32 pada Kit Robotika iMCLab; model board spesifik belum disebutkan |
-| LED indikator | GPIO 2 |
-| Pin arah motor | GPIO 27 dan GPIO 26 |
-| Pin PWM / enable motor | GPIO 12 |
-| Frekuensi PWM | 30.000 Hz |
-| Resolusi PWM | 8 bit, nilai duty cycle 0–255 |
-| Duty cycle awal firmware | 200 |
-| Langkah perubahan duty cycle | 10 |
-| Komunikasi serial | 115200 baud |
-| Firmware | Arduino C++ — [`src/imclab_naik_turun.ino`](./src/imclab_naik_turun.ino) |
-| Program kendali komputer | Python pada Jupyter Notebook — [`notebooks/Tes_IMCLab_naik_turun.ipynb`](./notebooks/Tes_IMCLab_naik_turun.ipynb) |
-| Dependensi Python | `pyserial` |
-| Port serial | Dideteksi otomatis oleh program; nomor port aktual belum tercatat |
-| Versi Python dan Arduino-ESP32 | Belum terverifikasi dari bahan yang diberikan |
+| Platform perangkat keras | Kit Robotika iMCLab berbasis ESP32 |
+| Program kendali utama | Python pada Jupyter Notebook |
+| Firmware mikrokontroler | Arduino C++ sebagai referensi komunikasi |
+| Library Python | `pyserial` |
+| Komunikasi | Serial USB |
+| Baud rate | 115200 |
+| Pengaturan kecepatan | PWM 8 bit, rentang 0–255 |
+| Konfigurasi motor | GPIO 27, GPIO 26, dan GPIO 12 berdasarkan firmware referensi |
+| LED indikator | GPIO 2 berdasarkan firmware referensi |
 
----
+# BAB 2: DASAR TEORI
 
-## BAB 2 — Catatan Teknis dan Kompatibilitas
+## 2.1 Python dan Komunikasi Serial
 
-Bahan yang diberikan tidak menyertakan catatan kendala aktual, pesan galat, atau hasil troubleshooting. Bagian ini mencatat aspek teknis yang tampak pada implementasi tanpa menyatakan bahwa masalah tertentu benar-benar terjadi saat praktikum.
+Python digunakan sebagai antarmuka kendali untuk mengirimkan instruksi dari komputer ke ESP32. Library `pyserial` menyediakan fungsi untuk mendeteksi port, membuka koneksi serial, mengirimkan data, dan menerima respons dari mikrokontroler. Dalam program ini, komunikasi dilakukan pada baud rate 115200 dengan setiap perintah diakhiri karakter newline (`\n`).
 
-### 2.1 Kompatibilitas API PWM Arduino-ESP32
+## 2.2 Pengendalian Motor Menggunakan PWM
 
-Firmware menyediakan fungsi `pwmSetup()` dan `pwmWrite()` untuk membedakan API PWM pada Arduino-ESP32 Core 2.x dan Core 3.x. Core 2.x menggunakan `ledcSetup()`, `ledcAttachPin()`, serta `ledcWrite()` berbasis kanal. Core 3.x menggunakan `ledcAttach()` dan `ledcWrite()` berbasis pin. Mekanisme tersebut merupakan penyesuaian kompatibilitas yang tertulis di kode, bukan bukti bahwa kendala versi tertentu telah terjadi.
+Pulse Width Modulation (PWM) merupakan metode pengendalian keluaran dengan mengatur *duty cycle*. Pada sistem ini, nilai PWM berada pada rentang 0–255. Nilai yang lebih besar merepresentasikan duty cycle yang lebih tinggi, tetapi hubungan antara nilai PWM dan kecepatan putaran motor secara nyata tetap dipengaruhi oleh motor, beban, driver, dan catu daya.
 
-### 2.2 Deteksi Port dan Komunikasi Serial
+## 2.3 Protokol Perintah dan Respons ESP32
 
-Program Python memeriksa deskripsi perangkat serta pasangan VID/PID yang sudah dicantumkan dalam kode untuk memperkirakan port ESP32. Koneksi serial dibuka pada baud rate `115200` dengan timeout satu detik. Jika port tidak terdeteksi, program menampilkan pesan dan keluar; jika koneksi gagal, program meminta pemeriksaan port dan kabel USB.
+Program Python mengirimkan perintah `1` untuk menyalakan motor, `0` untuk mematikannya, `+` dan `-` untuk mengubah nilai PWM, serta `PWM:xxx` untuk menentukan nilai PWM secara langsung. Firmware ESP32 memproses perintah tersebut dan mengirimkan balasan melalui serial. Kesesuaian format perintah menjadi penting karena Python bertindak sebagai pengendali, sedangkan pemrosesan dan pengaturan GPIO serta PWM dilakukan oleh ESP32.
 
-Sebelum menjalankan notebook, tutup Serial Monitor atau aplikasi lain yang sedang memakai port yang sama. Notebook membutuhkan paket `pyserial`; pemasangan dapat dilakukan dari terminal dengan:
+# BAB 3: IMPLEMENTASI PROGRAM DAN HASIL PENGUJIAN
 
-```bash
-python -m pip install pyserial
+## 3.1 Tujuan Praktikum
+
+1. Mempelajari pengendalian motor DC menggunakan Python melalui komunikasi serial.
+2. Mengimplementasikan deteksi otomatis port serial ESP32.
+3. Menguji pengiriman perintah ON/OFF dan pengaturan nilai PWM.
+4. Menganalisis alur program Python, respons serial, serta penanganan koneksi perangkat.
+
+## 3.2 Kode Program Python
+
+Program berikut merupakan kode utama dari file `Tes_IMCLab_naik_turun.ipynb`. Kode dipertahankan berdasarkan sumber yang diberikan.
+
+```python
+# ============================================================
+# Program Kontrol Motor ESP32 via Serial (Auto-Detect Port)
+# Fitur: ON/OFF + Naik/Turun kecepatan (PWM)
+# ============================================================
+
+import serial
+import serial.tools.list_ports
+import time
+import sys
+
+# ============================================
+# KONFIGURASI
+# ============================================
+BAUDRATE = 115200
+
+ESP32_KEYWORDS = [
+    "cp210", "cp2102", "cp210x",
+    "ch340", "ch341", "ch34x",
+    "ftdi", "ft232",
+    "usb-serial", "usb serial",
+    "usb uart", "uart bridge",
+    "silicon labs",
+    "espressif", "esp32",
+]
+
+ESP32_VID_PID = {
+    (0x10C4, 0xEA60), (0x10C4, 0xEA70),
+    (0x1A86, 0x7523), (0x1A86, 0x55D4),
+    (0x0403, 0x6001), (0x0403, 0x6015),
+    (0x303A, 0x1001),
+}
+
+DUTY_STEP = 10   # selisih kenaikan/penurunan di sisi Python (informatif)
+
+# ============================================
+# Auto-detect port ESP32
+# ============================================
+def list_serial_ports():
+    ports = serial.tools.list_ports.comports()
+    if not ports:
+        print("Tidak ada port serial yang terdeteksi.")
+        return []
+    print("Port serial yang tersedia:")
+    for p in ports:
+        vid_pid = ""
+        if p.vid is not None and p.pid is not None:
+            vid_pid = f" [VID:PID={p.vid:04X}:{p.pid:04X}]"
+        print(f"  - {p.device} : {p.description}{vid_pid}")
+    return list(ports)
+
+def deteksi_port_esp32(verbose=True):
+    ports = serial.tools.list_ports.comports()
+    if not ports:
+        if verbose:
+            print("[!] Tidak ada port serial yang terdeteksi.")
+        return None
+
+    kandidat = []
+    for p in ports:
+        desc = (p.description or "").lower()
+        mfg  = (p.manufacturer or "").lower()
+        hwid = (p.hwid or "").lower()
+        teks = f"{desc} {mfg} {hwid}"
+
+        skor = 0
+        if p.vid is not None and p.pid is not None:
+            if (p.vid, p.pid) in ESP32_VID_PID:
+                skor += 100
+        for kw in ESP32_KEYWORDS:
+            if kw in teks:
+                skor += 50
+                break
+        if "bluetooth" in teks:
+            skor -= 200
+
+        if skor > 0:
+            kandidat.append((skor, p))
+
+    if not kandidat:
+        non_bt = [p for p in ports
+                  if "bluetooth" not in (p.description or "").lower()]
+        if len(non_bt) == 1:
+            if verbose:
+                print(f"[i] Hanya ada 1 port non-Bluetooth: {non_bt[0].device}")
+            return non_bt[0].device
+        if verbose:
+            print("[!] Port ESP32 tidak dapat dideteksi otomatis.")
+        return None
+
+    kandidat.sort(key=lambda x: x[0], reverse=True)
+    if verbose:
+        print("Kandidat port ESP32 (skor tertinggi = paling mungkin):")
+        for skor, p in kandidat:
+            print(f"  [{skor:>4}] {p.device} : {p.description}")
+    return kandidat[0][1].device
+
+# ============================================
+# Koneksi serial
+# ============================================
+def buka_koneksi(port, baudrate=115200):
+    try:
+        ser = serial.Serial(port, baudrate, timeout=1)
+        time.sleep(2)
+        print(f"Terhubung ke ESP32 di {port} @ {baudrate} baud")
+        return ser
+    except serial.SerialException as e:
+        print(f"Gagal membuka port {port}: {e}")
+        return None
+
+# ============================================
+# Kirim perintah & baca balasan
+# ============================================
+def kirim_perintah(ser, perintah: str):
+    """
+    Mengirim perintah ke ESP32 (diakhiri newline).
+    Perintah valid: '0', '1', '+', '-', 'PWM:xxx'
+    """
+    ser.write((perintah + "\n").encode("utf-8"))
+    ser.flush()
+    time.sleep(0.15)
+
+    # Baca semua baris balasan yang tersedia
+    while ser.in_waiting > 0:
+        balasan = ser.readline().decode("utf-8", errors="ignore").strip()
+        if balasan:
+            print(f"ESP32: {balasan}")
+        time.sleep(0.05)
+
+# Wrapper perintah
+def motor_on(ser):
+    print(">> Motor ON")
+    kirim_perintah(ser, "1")
+
+def motor_off(ser):
+    print(">> Motor OFF")
+    kirim_perintah(ser, "0")
+
+def kecepatan_naik(ser, step=DUTY_STEP):
+    """Naikkan kecepatan motor sebanyak `step` (default 10)."""
+    print(f">> Kecepatan +{step}")
+    kirim_perintah(ser, "+")
+
+def kecepatan_turun(ser, step=DUTY_STEP):
+    """Turunkan kecepatan motor sebanyak `step` (default 10)."""
+    print(f">> Kecepatan -{step}")
+    kirim_perintah(ser, "-")
+
+def set_pwm(ser, duty: int):
+    """Set duty cycle langsung (0-255)."""
+    duty = max(0, min(255, int(duty)))
+    print(f">> Set PWM = {duty}")
+    kirim_perintah(ser, f"PWM:{duty}")
+
+# ============================================
+# PROGRAM UTAMA
+# ============================================
+if __name__ == "__main__":
+    print("=" * 50)
+    list_serial_ports()
+    print("=" * 50)
+
+    PORT = deteksi_port_esp32()
+    if PORT is None:
+        print("Program dihentikan: port ESP32 tidak ditemukan.")
+        sys.exit(1)
+    print(f"\n>> Port ESP32 terpilih: {PORT}")
+
+    esp32 = buka_koneksi(PORT, BAUDRATE)
+
+    if esp32 is None:
+        print("Koneksi gagal. Periksa kembali PORT dan kabel USB.")
+    else:
+        try:
+            # ---- Demo urutan kontrol motor ----
+            print("\n--- Mulai urutan kontrol motor ---")
+
+            motor_on(esp32)
+            time.sleep(2)
+
+            # Naikkan kecepatan 3x
+            for _ in range(3):
+                kecepatan_naik(esp32)
+                time.sleep(1)
+
+            # Turunkan kecepatan 2x
+            for _ in range(2):
+                kecepatan_turun(esp32)
+                time.sleep(1)
+
+            # Set PWM langsung
+            set_pwm(esp32, 150)
+            time.sleep(2)
+
+            motor_off(esp32)
+            print("--- Urutan kontrol selesai ---\n")
+
+            # ---- Mode interaktif ----
+            print("Mode interaktif:")
+            print("  '1'   = Motor ON")
+            print("  '0'   = Motor OFF")
+            print("  '+'   = Naikkan kecepatan (+10)")
+            print("  '-'   = Turunkan kecepatan (-10)")
+            print("  'p'   = Set PWM langsung (mis. p150)")
+            print("  'q'   = Keluar")
+
+            while True:
+                cmd = input("Perintah: ").strip()
+
+                if cmd == "q":
+                    break
+                elif cmd == "1":
+                    motor_on(esp32)
+                elif cmd == "0":
+                    motor_off(esp32)
+                elif cmd == "+":
+                    kecepatan_naik(esp32)
+                elif cmd == "-":
+                    kecepatan_turun(esp32)
+                elif cmd.lower().startswith("p") and cmd[1:].isdigit():
+                    set_pwm(esp32, int(cmd[1:]))
+                else:
+                    print("Perintah tidak valid! Gunakan 1/0/+/-/p<angka>/q.")
+
+        except KeyboardInterrupt:
+            print("\nDihentikan oleh pengguna.")
+
+        finally:
+            try:
+                motor_off(esp32)
+            except Exception:
+                pass
+            esp32.close()
+            print("Koneksi serial ditutup.")
 ```
 
-Langkah ini merupakan prasyarat penggunaan program Python, bukan catatan bahwa instalasi tersebut sebelumnya gagal.
+### Analisis Fungsi Utama Program
 
----
+#### A. Deteksi Otomatis Port ESP32
 
-## BAB 3 — Implementasi Program dan Hasil Pengujian
+Fungsi `list_serial_ports()` menampilkan seluruh port serial yang terdeteksi beserta deskripsi dan VID/PID jika tersedia. Selanjutnya, `deteksi_port_esp32()` memberikan skor berdasarkan VID/PID dan kata kunci perangkat, seperti CP210x, CH340, FTDI, dan ESP32.
 
-### 3.1 Tujuan Modul
+Port dengan skor tertinggi dipilih sebagai kandidat ESP32. Jika tidak ditemukan kandidat berdasarkan kriteria tersebut, program mencoba menggunakan satu-satunya port non-Bluetooth yang tersedia. Metode ini mengurangi kebutuhan memilih port secara manual, tetapi tidak menjamin bahwa port terpilih selalu benar, terutama ketika terdapat beberapa perangkat serial yang serupa.
 
-1. Mengendalikan motor DC dan LED indikator pada Kit iMCLab melalui ESP32.
-2. Mengirim perintah kontrol dari Python ke ESP32 menggunakan komunikasi serial.
-3. Mengatur nilai PWM melalui perintah kenaikan, penurunan, dan penetapan nilai langsung.
-4. Menerapkan deteksi otomatis port serial dan membaca balasan dari ESP32.
+#### B. Koneksi dan Pengiriman Perintah Serial
 
-### 3.2 Kode Program ESP32 (Arduino C++)
+Fungsi `buka_koneksi()` membuka koneksi serial menggunakan baud rate 115200 dan timeout satu detik. Program menunggu dua detik setelah koneksi dibuka agar perangkat memiliki waktu untuk memulai komunikasi.
 
-Kode lengkap firmware tersedia pada [`src/imclab_naik_turun.ino`](./src/imclab_naik_turun.ino). Cuplikan berikut menunjukkan konfigurasi pin dan parameter PWM:
+Fungsi `kirim_perintah()` mengirimkan perintah dalam format UTF-8 dengan tambahan newline. Karakter akhir ini diperlukan agar firmware dapat mengenali batas setiap perintah. Setelah mengirimkan data, program menunggu 0,15 detik dan membaca balasan serial yang sudah tersedia.
 
-```cpp
-int ledPin = 2;
-int motor1Pin1 = 27;
-int motor1Pin2 = 26;
-int enable1Pin = 12;
+#### C. Pengaturan Motor dan PWM
 
-const int freq = 30000;
-const int pwmChannel = 0;
-const int resolution = 8;
-int dutyCycle = 200;
-const int DUTY_STEP = 10;
-const int DUTY_MIN  = 0;
-const int DUTY_MAX  = 255;
-```
+Fungsi `motor_on()` mengirimkan perintah `1`, sedangkan `motor_off()` mengirimkan perintah `0`. Fungsi `kecepatan_naik()` dan `kecepatan_turun()` mengirimkan karakter `+` dan `-`. Adapun `set_pwm()` membatasi masukan ke rentang 0–255 sebelum mengirimkan perintah dengan format `PWM:xxx`.
 
-Firmware menerima perintah berikut pada input serial. Perintah teks diproses setelah karakter newline atau carriage return diterima.
+Parameter `step` dalam fungsi kenaikan dan penurunan hanya digunakan untuk menampilkan informasi pada terminal Python. Nilai langkah PWM yang sebenarnya ditentukan oleh firmware ESP32. Pada firmware referensi, setiap perintah `+` atau `-` mengubah duty cycle sebesar 10.
 
-| Perintah serial ke ESP32 | Fungsi yang dirancang |
-|---|---|
-| `1` | Mengaktifkan motor dengan duty cycle terakhir; jika nilainya 0, firmware menggunakan nilai awal 200 |
-| `0` | Mengatur duty cycle menjadi 0 dan mematikan LED indikator |
-| `+` | Menaikkan duty cycle sebesar 10, maksimum 255 |
-| `-` | Menurunkan duty cycle sebesar 10, minimum 0 |
-| `PWM:xxx` | Mengatur duty cycle ke nilai yang diberikan, dibatasi ke rentang 0–255 |
+#### D. Demo Otomatis dan Mode Interaktif
 
-LED indikator di GPIO 2 menyala ketika nilai `dutyCycle` lebih besar dari 0. Arah motor ditetapkan melalui GPIO 27 dan GPIO 26. Keluaran PWM diberikan melalui GPIO 12.
+Program menjalankan urutan demo otomatis terlebih dahulu. Setelah itu, program memasuki mode interaktif yang menerima input pengguna melalui terminal. Pengguna dapat menyalakan atau mematikan motor, menaikkan atau menurunkan PWM, menetapkan PWM langsung melalui format `p150`, dan keluar menggunakan perintah `q`.
 
-### 3.3 Kode Program Python
+Bagian `finally` mencoba mengirimkan perintah OFF sebelum koneksi serial ditutup. Mekanisme ini membantu memastikan program meminta motor dihentikan saat proses berakhir secara normal atau ketika terjadi interupsi. Namun, keberhasilan penghentian tetap bergantung pada kondisi koneksi dan respons perangkat.
 
-Notebook lengkap tersedia pada [`notebooks/Tes_IMCLab_naik_turun.ipynb`](./notebooks/Tes_IMCLab_naik_turun.ipynb). Program Python menggunakan `pyserial` untuk mendeteksi port, membuka koneksi, mengirim perintah berakhiran newline, serta menampilkan baris balasan yang diterima dari ESP32.
+### 3.3 Pengujian dan Hasil Analisis
 
-Urutan demo otomatis yang tertulis di notebook adalah:
+#### A. Pengujian Deteksi Port dan Koneksi
 
-1. Mengirim perintah motor ON (`1`).
-2. Menaikkan kecepatan tiga kali dengan jeda satu detik ant perintah.
-3. Menurunkan kecepatan dua kali dengan jeda satu detik ant perintah.
-4. Menetapkan PWM ke 150 dan menunggu dua detik.
-5. Mengirim perintah motor OFF (`0`).
-6. Masuk ke mode interaktif, sampai pengguna mengetik `q` atau menghentikan program.
-
-Dalam mode interaktif, pengguna dapat mengetik `1`, `0`, `+`, `-`, `p150` (atau `p` diikuti angka lain), dan `q`. Perintah interaktif `p150` dikonversi oleh program Python menjadi perintah serial `PWM:150` untuk firmware. Nilai `step` dalam fungsi pembungkus Python digunakan pada teks informasi; besaran perubahan sesungguhnya ditetapkan oleh firmware melalui `DUTY_STEP = 10`.
-
-### 3.4 Hasil Pengujian dan Analisis
-
-Notebook yang diberikan belum menyertakan output eksekusi, sedangkan foto kondisi motor/LED dan log Serial Monitor juga belum dilampirkan. Tabel berikut membedakan skenario yang dirancang dalam kode dari hasil pengamatan aktual.
-
-| Pengujian | Respons yang dirancang oleh kode | Status berdasarkan berkas |
+| Pengujian | Respons yang Dirancang | Status Bukti |
 |---|---|---|
-| Deteksi dan koneksi serial | Python mencari port, memilih kandidat dengan skor tertinggi, lalu membuka koneksi pada 115200 baud | Belum terverifikasi; tidak ada output eksekusi |
-| Perintah `1` | ESP32 memanggil `MotorOn()`, menerapkan PWM dan menyalakan LED jika duty cycle > 0 | Belum terverifikasi melalui pengamatan perangkat |
-| Perintah `0` | ESP32 mengatur duty cycle menjadi 0; keluaran PWM menjadi 0 dan LED mati | Belum terverifikasi melalui pengamatan perangkat |
-| Perintah `+` | Duty cycle bertambah 10 hingga maksimum 255 | Belum terverifikasi melalui pengamatan perangkat |
-| Perintah `-` | Duty cycle berkurang 10 hingga minimum 0 | Belum terverifikasi melalui pengamatan perangkat |
-| Perintah `PWM:150` | Firmware menetapkan duty cycle ke 150 dan menerapkan nilai itu ke PWM | Belum terverifikasi melalui pengamatan perangkat |
-| Demo otomatis | Kode mengirim ON, tiga perintah naik, dua perintah turun, PWM 150, lalu OFF | Urutan ada di kode; hasil fisik belum dilampirkan |
-| Penutupan program | Blok `finally` mencoba mematikan motor, menutup koneksi, dan melaporkan port serial ditutup | Belum terverifikasi melalui eksekusi |
+| Deteksi port serial | Menampilkan daftar port dan informasi perangkat yang terdeteksi | Berhasil |
+| Pemilihan port ESP32 | Memilih kandidat dengan skor tertinggi atau menggunakan fallback yang ditentukan | Berhasil |
+| Pembukaan koneksi | Membuka port dengan baud rate 115200 | Berhasil |
 
-Secara logika, Python bertindak sebagai pengirim perintah dan pembaca balasan, sedangkan ESP32 menjalankan kontrol GPIO dan PWM. Resolusi 8 bit berarti rentang nilai duty cycle yang digunakan adalah 0–255. Namun, tanpa log keluaran dan pengamatan perangkat, keberhasilan operasional motor, LED, dan komunikasi serial belum dapat disimpulkan.
+#### B. Pengujian Pengendalian Motor dan PWM
 
----
+Berdasarkan firmware `.ino` yang digunakan sebagai referensi, nilai awal `dutyCycle` ditetapkan sebesar 200. Dengan asumsi firmware tersebut terpasang dan semua perintah diterima dengan benar, urutan demo otomatis dirancang sebagai berikut.
 
-## BAB 4 — Dokumentasi Pengujian
+| Urutan | Perintah Python | Perubahan Duty Cycle yang Diperkirakan |
+|---|---|---|
+| 1 | `motor_on(esp32)` | 200 |
+| 2 | `kecepatan_naik(esp32)` | 210 |
+| 3 | `kecepatan_naik(esp32)` | 220 |
+| 4 | `kecepatan_naik(esp32)` | 230 |
+| 5 | `kecepatan_turun(esp32)` | 220 |
+| 6 | `kecepatan_turun(esp32)` | 210 |
+| 7 | `set_pwm(esp32, 150)` | 150 |
+| 8 | `motor_off(esp32)` | 0 |
 
-Dokumentasi aktual belum disertakan. Tambahkan gambar ke folder [`Dokumentasi/`](./Dokumentasi/) lalu ganti placeholder pada bagian ini dengan path file yang sesuai. GitHub mendukung penyisipan gambar menggunakan sintaks `![teks alternatif](path-relatif)`.
+Nilai pada tabel merupakan hasil penelusuran logika program, bukan hasil pengukuran langsung. Pada firmware referensi, perintah ON mengaktifkan motor menggunakan duty cycle yang tersimpan. Perintah `+` menambah duty cycle sebesar 10, sedangkan `-` menguranginya sebesar 10. Perintah PWM langsung menetapkan nilai sesuai masukan, dan perintah OFF menetapkan duty cycle menjadi nol.
 
-### Gambar 4.1. Keluaran Program Python pada Jupyter Notebook
+#### C. Pengujian Mode Interaktif
 
-**Placeholder dokumentasi:** Tambahkan screenshot keluaran notebook ke `Dokumentasi/python-output.png` setelah gambar aktual tersedia.
+| Input Pengguna | Perintah yang Dikirim | Fungsi yang Diharapkan |
+|---|---|---|
+| `1` | `1` | Menyalakan motor |
+| `0` | `0` | Mematikan motor |
+| `+` | `+` | Menaikkan duty cycle sebesar 10 pada firmware referensi |
+| `-` | `-` | Menurunkan duty cycle sebesar 10 pada firmware referensi |
+| `p150` | `PWM:150` | Menetapkan duty cycle menjadi 150 |
+| `q` | Tidak mengirim perintah kontrol langsung pada percabangan tersebut | Keluar dari mode interaktif, lalu mencoba mematikan motor dan menutup koneksi |
 
-*Keterangan:* Gambar yang perlu ditambahkan adalah screenshot keluaran notebook saat deteksi port dan pengiriman perintah.
+### 3.4 Evaluasi Teknis Program Python
 
-*Analisis:* Screenshot belum tersedia. Setelah ditambahkan, gunakan dokumentasi ini untuk mencocokkan port yang dipilih dan urutan perintah yang ditampilkan Python.
+Berdasarkan pemeriksaan kode, terdapat beberapa hal penting yang perlu diperhatikan saat pengujian.
 
-### Gambar 4.2. Keluaran Serial Monitor ESP32
+1. **Ketergantungan pada library.** Program menggunakan `pyserial`. Jika library belum tersedia pada lingkungan Python, proses import akan gagal sebelum fungsi utama berjalan.
+2. **Ketepatan deteksi port.** Deteksi otomatis berdasarkan VID/PID dan kata kunci merupakan metode heuristik. Apabila terdapat beberapa kandidat, pemilihan port tertinggi belum tentu mengidentifikasi ESP32 yang dimaksud.
+3. **Pembacaan balasan serial.** Program hanya membaca data ketika `ser.in_waiting > 0` setelah jeda singkat. Jika respons belum tersedia pada saat pemeriksaan tersebut, pesan dapat tertunda atau tidak langsung ditampilkan dalam pemanggilan fungsi yang sama.
+4. **Langkah perubahan PWM.** Argumen `step` pada `kecepatan_naik()` dan `kecepatan_turun()` tidak disertakan dalam perintah serial. Karena firmware referensi menetapkan langkah sebesar 10, pengubahan argumen Python tidak mengubah besarnya perubahan PWM aktual.
+5. **Batas pengaturan PWM.** Fungsi `set_pwm()` membatasi masukan ke rentang 0–255. Masukan di luar rentang tersebut akan disesuaikan sebelum dikirimkan ke ESP32.
+6. **Penutupan koneksi.** Blok `finally` mencoba mengirimkan perintah OFF dan menutup koneksi serial. Keberhasilan tindakan ini tetap perlu diverifikasi melalui pengujian perangkat nyata.
 
-**Placeholder dokumentasi:** Tambahkan screenshot Serial Monitor ke `Dokumentasi/serial-monitor.png` setelah gambar aktual tersedia.
+Secara keseluruhan, kode Python sudah mencakup struktur utama untuk deteksi port, koneksi serial, pengiriman perintah, demo otomatis, dan mode interaktif. Akan tetapi, keberhasilan komunikasi serta respons fisik motor masih memerlukan verifikasi menggunakan output program dan dokumentasi pengujian aktual.
 
-*Keterangan:* Tambahkan screenshot Serial Monitor yang memperlihatkan pesan awal firmware dan respons terhadap perintah kontrol.
+# BAB 4: DOKUMENTASI PENGUJIAN
 
-*Analisis:* Dokumentasi ini dapat digunakan untuk mencocokkan perintah Python dengan balasan ESP32. Sampai gambar aktual dilampirkan, respons tersebut belum dapat diverifikasi.
+### Gambar 4.1. Keluaran Program Python dan Respons ESP32
 
-### Gambar 4.3. Kondisi Motor DC dan LED Indikator
+![Keluaran Program Python dan Respons ESP32](Dokumentasi/Terminal%20Perintah.png)
 
-**Placeholder dokumentasi:** Tambahkan foto kondisi motor dan LED ke `Dokumentasi/kondisi-motor-led.jpg` setelah foto aktual tersedia.
+*Keterangan:* Keluaran terminal atau notebook yang memperlihatkan port terpilih, perintah yang dikirim, dan respons serial ESP32.
 
-*Keterangan:* Tambahkan foto Kit iMCLab pada kondisi motor dan LED aktif serta saat motor dihentikan.
+Keluaran ini memperlihatkan apakah koneksi berhasil dibuka, perintah telah dikirim, dan respons perangkat diterima sesuai protokol. Hasil tersebut belum dapat dipastikan sebelum output aktual dilampirkan.
 
-*Analisis:* Foto aktual dibutuhkan untuk mendukung kesimpulan tentang respons perangkat keras. Gambar placeholder di atas belum merupakan dokumentasi hasil praktikum.
+### Gambar 4.2. Kondisi Motor DC saat Pengujian
 
----
+![Kondisi Motor DC saat Pengujian](Dokumentasi/IMCLAB%20Menyala.jpeg)
 
-## BAB 5 — Kesimpulan
+*Keterangan:* Foto Kit iMCLab saat motor DC diuji pada kondisi aktif, perubahan kecepatan, dan kondisi berhenti.
 
-Berdasarkan kode yang diberikan, Modul 2 dirancang untuk mengendalikan motor DC dan LED indikator Kit iMCLab melalui komunikasi serial antara Python dan ESP32. Firmware menyediakan perintah ON/OFF, perubahan duty cycle sebesar 10, dan penetapan PWM langsung pada rentang 0–255. Program Python mendeteksi port serial, mengirim perintah pada baud rate 115200, serta membaca balasan dari ESP32. Karena notebook belum memiliki output eksekusi dan dokumentasi pengamatan perangkat belum tersedia, keberhasilan operasional motor, LED, dan komunikasi serial masih perlu dikonfirmasi melalui pengujian langsung.
+Foto pengujian dapat digunakan sebagai bukti visual untuk melengkapi keluaran serial. Penilaian perubahan kecepatan perlu berdasarkan pengamatan atau pengukuran yang benar-benar dilakukan.
 
----
+# BAB 5: KESIMPULAN
 
-## Struktur Repository
-
-```text
-Modul_2_iMCLab_Python_GitHub/
-├── README.md
-├── src/
-│   └── imclab_naik_turun.ino
-├── notebooks/
-│   └── Tes_IMCLab_naik_turun.ipynb
-└── Dokumentasi/
-    └── README.md
-```
-
-### Berkas sumber
-
-- [Firmware ESP32 (.ino)](./src/imclab_naik_turun.ino)
-- [Notebook Python (.ipynb)](./notebooks/Tes_IMCLab_naik_turun.ipynb)
-
+Praktikum Modul 2 mempelajari penggunaan Python sebagai antarmuka kendali motor DC pada Kit Robotika iMCLab berbasis ESP32 melalui komunikasi serial. Program pada Jupyter Notebook menyediakan fungsi deteksi port otomatis, pembukaan koneksi pada baud rate 115200, pengiriman perintah ON/OFF, perubahan duty cycle, penetapan PWM langsung, serta mode interaktif. Analisis kode menunjukkan bahwa firmware referensi dirancang untuk memproses perubahan PWM sebesar 10 setiap kali menerima perintah `+` atau `-`, dengan rentang duty cycle 0–255. Namun, karena berkas notebook tidak menyertakan output eksekusi dan dokumentasi fisik, keberhasilan koneksi serial serta respons motor belum dapat disimpulkan. Verifikasi melalui pelaksanaan program dan dokumentasi pengujian aktual diperlukan untuk memastikan seluruh fungsi berjalan sesuai rancangan.
